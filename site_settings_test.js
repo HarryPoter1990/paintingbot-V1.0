@@ -15,7 +15,22 @@ test('场地编辑包含平滑石和按原配置排列的十六色地毯，不�
   assert.match(copy.buildResidence, /^[A-Za-z0-9_.-]+$/)
   assert.equal('buildTransit' in copy, false)
   assert.equal('buildOrigin' in copy, false)
+  assert.equal(copy.foodItemName, config.foodChest.itemName)
   assert.deepEqual(settings.validate(copy), copy)
+})
+
+test('补给食物只能三选一，且三种物品在游戏版本中可食用', () => {
+  const data = require('minecraft-data')('1.20.4')
+  const base = settings.snapshot(config)
+  assert.deepEqual(settings.FOOD_ITEMS, ['cooked_cod', 'bread', 'cooked_porkchop'])
+  for (const itemName of settings.FOOD_ITEMS) {
+    assert.ok(data.itemsByName[itemName])
+    assert.ok(data.foodsByName[itemName])
+    assert.equal(settings.validate({ ...base, foodItemName: itemName }).foodItemName, itemName)
+  }
+  assert.throws(() => settings.validate({ ...base, foodItemName: 'apple' }), /食物只能选择/)
+  assert.throws(() => settings.validate({ ...base, foodItemName: ['bread', 'cooked_cod'] }), /食物只能选择/)
+  assert.throws(() => settings.validate({ ...base, foodItemName: undefined }), /食物只能选择/)
 })
 
 test('拒绝无效坐标、缺色和未授权字段', () => {
@@ -34,7 +49,7 @@ test('保存可覆盖旧文件，应用时不改 dth 或投影起点', async t =
   const file = path.join(folder, 'settings.json')
   const copy = settings.snapshot(config)
   await settings.save(copy, file)
-  const changed = { ...copy, materialResidence: 'new_store', buildResidence: 'new_store.build', discardStand: { x: copy.discardStand.x + 1, y: copy.discardStand.y, z: copy.discardStand.z } }
+  const changed = { ...copy, materialResidence: 'new_store', buildResidence: 'new_store.build', foodItemName: 'bread', discardStand: { x: copy.discardStand.x + 1, y: copy.discardStand.y, z: copy.discardStand.z } }
   await settings.save(changed, file)
   assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), changed)
   const origin = { ...config.sites.build.origin }
@@ -43,13 +58,16 @@ test('保存可覆盖旧文件，应用时不改 dth 或投影起点', async t =
   assert.deepEqual(settings.snapshot(config), changed)
   assert.equal(config.sites.material.teleport, '/res tp new_store')
   assert.equal(config.sites.build.teleport, '/res tp new_store.build')
+  assert.equal(config.foodChest.itemName, 'bread')
   assert.deepEqual({ ...config.sites.build.origin }, origin)
   assert.deepEqual({ ...config.sites.build.arrival }, transit)
   const oldFormat = { ...copy }
   delete oldFormat.materialResidence
   delete oldFormat.buildResidence
+  delete oldFormat.foodItemName
   await fs.writeFile(file, JSON.stringify(oldFormat))
   assert.doesNotThrow(() => settings.load(config, file))
+  assert.equal(config.foodChest.itemName, 'bread')
 })
 
 test('场地坐标网页脚本可解析，且默认有锁定入口', async () => {
@@ -60,4 +78,5 @@ test('场地坐标网页脚本可解析，且默认有锁定入口', async () =>
   assert.doesNotThrow(() => new vm.Script(script))
   assert.match(html, /id="unlock"/)
   assert.match(html, /id="save"[^>]*disabled/)
+  for (const itemName of settings.FOOD_ITEMS) assert.match(html, new RegExp(`<option value="${itemName}">`))
 })

@@ -10,6 +10,7 @@ const CARPETS = [
   'brown_carpet', 'green_carpet', 'red_carpet', 'black_carpet'
 ]
 const COLUMN_NAMES = ['smooth_stone', ...CARPETS]
+const FOOD_ITEMS = ['cooked_cod', 'bread', 'cooked_porkchop']
 
 function point(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -46,6 +47,7 @@ function snapshot(config) {
     columns: Object.fromEntries(COLUMN_NAMES.map(name => [name, plain(config.storage.columns[name])])),
     foodChestPosition: plain(config.foodChest.position),
     foodChestAccess: plain(config.foodChest.access),
+    foodItemName: config.foodChest.itemName,
     discardStand: plain(config.storage.leftovers.stand),
     discardFacing: config.storage.leftovers.facing
   }
@@ -54,7 +56,7 @@ function snapshot(config) {
 function validate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('场地设置格式不正确')
   const fields = ['materialResidence', 'buildResidence', 'materialArrival', 'materialAnchor', 'storageAccessOffset', 'storageLevels',
-    'storageAccessYStep', 'columns', 'foodChestPosition', 'foodChestAccess', 'discardStand', 'discardFacing']
+    'storageAccessYStep', 'columns', 'foodChestPosition', 'foodChestAccess', 'foodItemName', 'discardStand', 'discardFacing']
   if (Object.keys(input).some(key => !fields.includes(key)) || fields.some(key => !(key in input))) {
     throw new Error('场地设置字段不完整，或包含不允许修改的字段')
   }
@@ -70,6 +72,7 @@ function validate(input) {
     throw new Error('每层站位 Y 偏移只能是 -8 至 8 的整数')
   }
   if (!['north', 'south', 'east', 'west'].includes(input.discardFacing)) throw new Error('丢弃方向不正确')
+  if (!FOOD_ITEMS.includes(input.foodItemName)) throw new Error('食物只能选择熟鳕鱼、面包或熟猪排')
   return {
     materialResidence: residence(input.materialResidence, '材料领地名称'),
     buildResidence: residence(input.buildResidence, '建造子领地名称'),
@@ -81,6 +84,7 @@ function validate(input) {
     columns: Object.fromEntries(COLUMN_NAMES.map(name => [name, point(input.columns[name], name)])),
     foodChestPosition: point(input.foodChestPosition, '食物箱'),
     foodChestAccess: point(input.foodChestAccess, '食物箱站位'),
+    foodItemName: input.foodItemName,
     discardStand: point(input.discardStand, '丢弃站位'),
     discardFacing: input.discardFacing
   }
@@ -98,6 +102,7 @@ function apply(config, input) {
   for (const name of COLUMN_NAMES) config.storage.columns[name] = vec(data.columns[name])
   config.foodChest.position = vec(data.foodChestPosition)
   config.foodChest.access = vec(data.foodChestAccess)
+  config.foodChest.itemName = data.foodItemName
   config.storage.leftovers.stand = vec(data.discardStand)
   config.storage.leftovers.facing = data.discardFacing
   return data
@@ -110,6 +115,7 @@ function load(config, file = FILE) {
     // Site files saved before residence-name editing did not include these two fields.
     saved.materialResidence ??= nameFromTeleport(config.sites.material.teleport)
     saved.buildResidence ??= nameFromTeleport(config.sites.build.teleport)
+    saved.foodItemName ??= config.foodChest.itemName
     apply(config, saved)
   } catch (error) { throw new Error(`场地坐标配置无效（${file}）：${error.message}`) }
   return config
@@ -126,4 +132,4 @@ async function save(input, file = FILE) {
   return data
 }
 
-module.exports = { CARPETS, COLUMN_NAMES, FILE, snapshot, validate, apply, load, save }
+module.exports = { CARPETS, COLUMN_NAMES, FOOD_ITEMS, FILE, snapshot, validate, apply, load, save }

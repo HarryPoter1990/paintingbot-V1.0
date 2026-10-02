@@ -40,7 +40,7 @@
 <section><h2>传送领地</h2><p>只填名称，不用输入 /res tp。机器人下一次启动会按这里的名称传送。</p><div class="grid" id="residences"></div></section>
 <section><h2>材料仓库</h2><p>材料领地落点用于确认传送是否成功。桶列层数决定机器人向上检查多少层。</p><div class="grid" id="basics"></div></section>
 <section><h2>材料桶位置</h2><p>平滑石头及 16 色地毯，逐项填写第 0 层桶的世界坐标。更高层由“桶列层数”和站位规则推算。</p><div class="grid" id="columns"></div></section>
-<section><h2>食物箱与丢弃点</h2><p>食物箱目前只会取熟鳕鱼（cooked_cod）；箱内放其他食物不会自动取用。食物箱站位和丢弃站位都应是脚下有安全方块的位置，丢弃方向必须确实朝向虚空。</p><div class="grid" id="other"></div></section>
+<section><h2>食物箱与丢弃点</h2><p>从熟鳕鱼、面包、熟猪排中选择一种，食物箱中需备有对应食物；其他食物不会作为本次补给取用。食物箱站位和丢弃站位都应是脚下有安全方块的位置，丢弃方向必须确实朝向虚空。</p><div class="grid" id="other"></div></section>
 <div class="notice warn">保存只改变后续启动的机器人读取的场地坐标，不会移动世界里的桶、箱子或领地。请先在游戏内核对方块与站位。</div>
 </main>
 <script>
@@ -92,7 +92,8 @@ function render() {
       const world = plus(s.materialAnchor,s.columns[name]); const label = `${index+1}. <i class="color-dot" style="background:${carpetColors[index]}"></i>${carpetNames[name]} · ${name}`
       return xyz(`col-${name}`,label,world)
     }).join('')
-  $('other').innerHTML = xyz('foodChestPosition','食物箱方块',s.foodChestPosition) + xyz('foodChestAccess','食物箱站位',s.foodChestAccess) + xyz('discardStand','丢弃站位',s.discardStand) + `<div class="tile"><label for="discardFacing">丢弃方向</label><select id="discardFacing" disabled><option value="west">西 west</option><option value="east">东 east</option><option value="north">北 north</option><option value="south">南 south</option></select><small>请核实这一侧确实通向虚空</small></div>`
+  $('other').innerHTML = xyz('foodChestPosition','食物箱方块',s.foodChestPosition) + xyz('foodChestAccess','食物箱站位',s.foodChestAccess) + `<div class="tile"><label for="foodItemName">补给食物（只能选一种）</label><select id="foodItemName" disabled><option value="cooked_cod">熟鳕鱼</option><option value="bread">面包</option><option value="cooked_porkchop">熟猪排</option></select><small>保存后，下次启动的机器人会按所选食物取用和归还</small></div>` + xyz('discardStand','丢弃站位',s.discardStand) + `<div class="tile"><label for="discardFacing">丢弃方向</label><select id="discardFacing" disabled><option value="west">西 west</option><option value="east">东 east</option><option value="north">北 north</option><option value="south">南 south</option></select><small>请核实这一侧确实通向虚空</small></div>`
+  $('foodItemName').value = s.foodItemName
   $('discardFacing').value = s.discardFacing
   setLocked(true)
 }
@@ -131,7 +132,7 @@ function collect() {
     storageAccessOffset:point('storageAccessOffset'), storageLevels:integer('storageLevels'),
     storageAccessYStep:integer('storageAccessYStep'),
     columns:Object.fromEntries(['smooth_stone',...order].map(name => [name, minus(point(`col-${name}`),anchor)])),
-    foodChestPosition:point('foodChestPosition'), foodChestAccess:point('foodChestAccess'),
+    foodChestPosition:point('foodChestPosition'), foodChestAccess:point('foodChestAccess'), foodItemName:$('foodItemName').value,
     discardStand:point('discardStand'), discardFacing:$('discardFacing').value
   }
 }

@@ -15,6 +15,7 @@ const { pathfinder, Movements, goals: { GoalNear } } = require('mineflayer-pathf
 const config = require('./config')
 const { resolveProjection } = require('./projection_resolver')
 const { writeAuditReport } = require('./audit_report_writer')
+const { selectedFoodItem } = require('./food_selection')
 
 // Microsoft authentication happens inside mineflayer.createBot(), before the
 // first spawn packet and before dashboard-job loading. Apply worker profile
@@ -555,10 +556,7 @@ async function returnUnusedLadders() {
 }
 
 function bestFoodItem() {
-  return bot.inventory.items()
-    .map(item => ({ item, food: bot.registry.foodsByName?.[item.name] }))
-    .filter(entry => entry.food)
-    .sort((a, b) => (b.food.foodPoints || 0) - (a.food.foodPoints || 0))[0]?.item
+  return selectedFoodItem(bot.inventory.items(), bot.registry.foodsByName, config.foodChest.itemName)
 }
 
 async function withFoodChest(action) {
