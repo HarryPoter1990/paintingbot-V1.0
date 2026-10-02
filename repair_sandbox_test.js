@@ -5,7 +5,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 const { Vec3 } = require('vec3')
 
-const source = fs.readFileSync(path.join(__dirname, 'painting_v2.js'), 'utf8')
+const source = fs.readFileSync(path.join(__dirname, 'painting_v2.js'), 'utf8').replace(/\r\n/g, '\n')
 const startupGuard = /\nconst setupMissing = require\('\.\/initial_setup'\)\.missing\(config,[^\n]+\)\nif \(setupMissing\.length\) \{[\s\S]*?\} else createBot\(\)\s*$/
 assert.match(source, startupGuard)
 const configModule = fs.existsSync(path.join(__dirname, 'config.js')) ? './config' : './config.example'

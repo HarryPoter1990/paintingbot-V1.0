@@ -3,6 +3,7 @@
  */
 const mineflayer = require('mineflayer')
 const config = require('./config')
+const { makeSisuAuth } = require('./right_auth_sisu')
 
 const left = config.workers?.left
 if (!left?.username || !left?.profilesFolder) {
@@ -10,15 +11,17 @@ if (!left?.username || !left?.profilesFolder) {
 }
 
 console.log('[left-auth] Starting a one-time Microsoft authorization for the left worker.')
-console.log(`[left-auth] Separate cache: ${left.profilesFolder}`)
+console.log('[left-auth] Using a separate left-account login cache.')
 console.log(`[left-auth] Follow the device-login instructions and sign in as ${left.expectedMinecraftName || left.username}.`)
 
-const bot = mineflayer.createBot({
+const connection = {
   ...config.connection,
   username: left.username,
   profilesFolder: left.profilesFolder,
   auth: 'microsoft'
-})
+}
+connection.auth = makeSisuAuth(connection, __dirname)
+const bot = mineflayer.createBot(connection)
 
 let finished = false
 function finish(code) {

@@ -1389,6 +1389,10 @@ async function run() {
 }
 
 function createBot() {
+  if (process.env.MAPART_AUTH_LEGACY !== '1') {
+    config.connection.auth = require('./right_auth_sisu').makeSisuAuth(config.connection, __dirname)
+    console.log(`[auth] ${workerLabel} uses isolated Sisu authentication`)
+  }
   bot = mineflayer.createBot(config.connection)
   bot.loadPlugin(pathfinder)
   bot.once('spawn', async () => {
