@@ -59,6 +59,7 @@
   #location-guide { margin:0 0 16px; padding:12px 14px; border-radius:13px; color:#4b5975; background:linear-gradient(90deg,#f0edff,#edf8ff); font-size:13px }
   #location-guide code { color:#624bd5; font-weight:800 }
   #location-guide button { min-height:30px; margin-left:4px; padding:4px 8px; color:#5947c7; border-color:#d8d1ff; background:rgba(255,255,255,.75); font-size:12px }
+  #origin-explain { margin:8px 0; padding:10px 12px; border-radius:11px; color:#5b4671; background:#fff3fa; font-size:13px }
   .transit-editor { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:7px; align-items:center; margin:12px 0 4px; padding:11px; border:1px solid #dce6fa; border-radius:12px; background:#f5f9ff; } .transit-editor label { grid-column:1 / -1; color:#50617d; font-size:13px; font-weight:750; } #save-transit { color:#fff; border-color:transparent; background:#4f79d8; }
   .worker-editor { display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end; margin:12px 0; padding:11px; border:1px solid #e0dafa; border-radius:12px; background:#faf9ff; } .worker-editor label { color:#50617d; font-size:13px; font-weight:750; } .worker-editor select { margin-top:4px; } .worker-note { grid-column:1 / -1; color:#6d638d; font-size:12px; }
   #name,#schematic { width:21% } #x,#y,#z { width:13% } #add { width:18% }
@@ -92,7 +93,8 @@
   <div class="transit-editor"><label id="transit-label">建造传送落点：机器人传送后实际站着的位置</label><input id="transit-x" placeholder="落点 X"><input id="transit-y" placeholder="落点 Y"><input id="transit-z" placeholder="落点 Z"><button id="save-transit">保存落点</button></div>
   <div class="worker-editor"><label>建造方式<select id="build-mode"><option value="single">单人建造：一台机器人铺整张</option><option value="dual">双人建造：先铺地基，再各铺一半</option></select></label><div>机器人：<span id="worker-profiles">正在读取…</span> <a href="/sites">修改服务器与账号</a></div><div class="worker-note">双人模式会先由主机器人铺平滑石头，然后两台机器人同时铺左右两半。</div></div>
   <input id="name" placeholder="任务名"><select id="schematic"></select>
-  <input id="x" placeholder="起点 X"><input id="y" placeholder="Y"><input id="z" placeholder="Z">
+  <input id="x" placeholder="投影内部起点 X"><input id="y" placeholder="Y"><input id="z" placeholder="Z">
+  <div id="origin-explain" role="status">这里填投影内部起点；第一条平滑石从 X + 1、同 Y/Z 开始，不要把第一块平滑石的坐标直接填成起点。</div>
   <small>按投影原方向建造，无需设置旋转。</small>
   <button id="add">添加任务</button><p class="job-note">进度用于续建；完工后可用“检查漏铺”核对实际方块。</p><div id="jobs"></div>
 </section>
@@ -234,6 +236,17 @@ async function uploadProjectionFile(file, overwrite = false) {
   }
 }
 
+function updateOriginExplain() {
+  const values = ['x', 'y', 'z'].map(id => $(id).value.trim())
+  if (values.some(value => !/^-?\d+$/.test(value))) {
+    $('origin-explain').textContent = '这里填投影内部起点；第一条平滑石从 X + 1、同 Y/Z 开始，不要把第一块平滑石的坐标直接填成起点。'
+    return
+  }
+  const [x, y, z] = values.map(Number)
+  $('origin-explain').textContent = `投影内部起点：${x}, ${y}, ${z}；第一条平滑石从 ${x + 1}, ${y}, ${z} 开始，第一块地毯从 ${x + 1}, ${y}, ${z + 1} 开始。`
+}
+for (const id of ['x', 'y', 'z']) $(id).addEventListener('input', updateOriginExplain)
+
 async function refresh() {
   const data = await api('/api/status')
   renderRunNotice(data.lastRun)
@@ -257,9 +270,9 @@ async function refresh() {
     const next = data.suggestedOrigin
     const transit = data.suggestedBuildTransit
     const transitText = transit ? `<br><strong>建造传送点可设在：</strong><code>${transit.x}, ${transit.y}, ${transit.z}</code>（第一块平滑石前方一格；这是建议，不会自动修改领地。）` : ''
-    $('location-guide').innerHTML = `上一张起点：<code>${old.x}, ${old.y}, ${old.z}</code>。如果下一张叠在上面，X/Z 不变、Y 加 1，建议起点 <code>${next.x}, ${next.y}, ${next.z}</code>。 ${transitText}<button id="use-next">填入建议起点</button> <button id="use-old">填入上一张起点</button> <button id="sync-location">更新上一张位置</button>`
-    $('use-next').onclick = () => { $('x').value = next.x; $('y').value = next.y; $('z').value = next.z }
-    $('use-old').onclick = () => { $('x').value = old.x; $('y').value = old.y; $('z').value = old.z }
+    $('location-guide').innerHTML = `上一张投影内部起点：<code>${old.x}, ${old.y}, ${old.z}</code>。如果下一张叠在上面，X/Z 不变、Y 加 1，建议内部起点 <code>${next.x}, ${next.y}, ${next.z}</code>。 ${transitText}<button id="use-next">填入建议起点</button> <button id="use-old">填入上一张起点</button> <button id="sync-location">更新上一张位置</button>`
+    $('use-next').onclick = () => { $('x').value = next.x; $('y').value = next.y; $('z').value = next.z; updateOriginExplain() }
+    $('use-old').onclick = () => { $('x').value = old.x; $('y').value = old.y; $('z').value = old.z; updateOriginExplain() }
     $('sync-location').onclick = async () => { const raw = prompt('填写当前已铺投影的内部起点 X,Y,Z（例：100,64,100）', `${old.x},${old.y},${old.z}`); if (raw === null) return; const parts = raw.split(',').map(x => Number(x.trim())); if (parts.length !== 3 || parts.some(x => !Number.isFinite(x))) return alert('请按 X,Y,Z 格式填写三个数字'); try { await api('/api/placement-anchor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ origin: { x: parts[0], y: parts[1], z: parts[2] }, rotation: 0 }) }); refresh() } catch (error) { alert(error.message) } }
   }
   const profiles = data.workers || {}
