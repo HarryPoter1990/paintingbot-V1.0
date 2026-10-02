@@ -1,6 +1,6 @@
 # 地图画控制台
 
-这是一个本机地图画工作台：制作投影、管理任务，并让 Minecraft 机器人按指定坐标铺设平滑石和 16 色地毯。Windows 桌面端内嵌的就是原来的网页，两端共用任务、进度与设置。
+这是一个本机地图画工作台：制作投影、管理任务，并让 Minecraft 机器人按指定坐标铺设平滑石和 16 色地毯。桌面端与浏览器共用页面、任务、进度和设置。
 
 本项目基于 [aaeddy/wolfxbot](https://github.com/aaeddy/wolfxbot) 的地图画机器人流程扩展。源码采用 [MIT 许可证](LICENSE)，原作者声明已保留；SlopeCraft/imageCutter 的参考关系和 npm 组件见[来源与第三方说明](THIRD_PARTY_NOTICES.md)。
 
@@ -12,9 +12,9 @@
 - 程序失败后会停止，不会自动反复重连。同一任务再次启动时会读取已有进度并检查未完成区域。
 - 进度条用于续建，不保证世界中的每一块都正确；完工后用“检查漏铺”核对。
 
-## 第一次使用 GitHub 源码
+## 首次安装
 
-公开仓库只放源码，**不包含**你的机器人账号、场地配置、投影、进度或桌面 EXE。Windows 用户先安装 [Node.js](https://nodejs.org/en/download)（项目已用 Node.js 22 测试），下载并解压仓库，然后在该文件夹空白处打开 PowerShell：
+下载的源码不含账号设置、投影、任务进度或预编译桌面程序。Windows 用户先安装 [Node.js](https://nodejs.org/en/download)（项目已用 Node.js 22 测试），下载并解压仓库，然后在该文件夹空白处打开 PowerShell：
 
 ```powershell
 npm.cmd ci
@@ -30,14 +30,14 @@ npm.cmd run dashboard
 
 ### 可选：使用桌面窗口
 
-公开源码不附带预编译 EXE。若想用桌面窗口，还需安装 [.NET 10 SDK](https://learn.microsoft.com/dotnet/core/install/windows) 和 [Microsoft Edge WebView2 Runtime](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution)，然后在同一目录执行：
+桌面窗口是可选功能，需要自行编译。先安装 [.NET 10 SDK](https://learn.microsoft.com/dotnet/core/install/windows) 和 [Microsoft Edge WebView2 Runtime](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution)，然后在项目目录执行：
 
 ```powershell
 dotnet publish '.\桌面控制台\MapArtController.csproj' -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o '.\桌面控制台\publish'
 & '.\桌面控制台\publish\地图画控制台.exe'
 ```
 
-在桌面窗口点“启动网页”即可使用与浏览器相同的建造任务、图片制作和仓库页面；两端共享本机同一份数据。桌面 EXE 仍需要 Node.js 项目和本机配置，不能单独拿到另一台电脑运行。已有本机完整版本、且目录内有 `地图画控制台.exe` 的用户，直接双击它即可。
+在桌面窗口点“启动网页”即可使用建造任务、图片制作和仓库页面；两端共享同一份数据。桌面程序仍需与 Node.js 项目放在一起，不能单独复制 EXE 到另一台电脑运行。
 
 若出现 `EADDRINUSE`，表示 32124 端口已有网页服务；回到已有窗口，不要重复启动。
 
@@ -92,7 +92,7 @@ dotnet publish '.\桌面控制台\MapArtController.csproj' -c Release -r win-x64
 ├─ 投影文件/          .litematic 投影
 ├─ schem/              机器人使用的 .schem
 ├─ state/              任务、续建进度、复检结果
-├─ 地图画控制台.exe      Windows 桌面入口
+├─ 桌面控制台/          可选桌面端源码，编译后生成 EXE
 ├─ dashboard.js         网页服务
 └─ painting_v2.js       建造引擎
 ```
@@ -109,7 +109,8 @@ dotnet publish '.\桌面控制台\MapArtController.csproj' -c Release -r win-x64
 - **主号明显变卡**：先点“停止机器人”，等服务器恢复流畅再查看日志。
 - **任务名称正确但图案不对**：立即停止，核对任务卡选择的 `.schem`，以及日志开头的 `schematic=schem/文件名.schem`。不要等整张铺完才检查。
 
-## 命令行与修复
+<details>
+<summary>进阶操作：命令行与修复（按需展开）</summary>
 
 日常操作优先用桌面或网页。需要检查程序或在网页不可用时手动处理，可在项目目录执行：
 
@@ -127,6 +128,4 @@ npm.cmd run repair
 
 桌面端关闭由它启动的网页服务时，若机器人或图片转换还在运行，会先请求安全停止。由其他 PowerShell 窗口启动的网页服务，需要回到那个窗口关闭；桌面端不会强行结束它。
 
-## 准备公开到 GitHub
-
-仓库使用 `config.example.js` 演示配置格式，实际 `config.js`、授权缓存、任务进度、个人投影、生成文件、日志和编译产物均被 `.gitignore` 排除。上传前仍应运行 `git status --short --untracked-files=all`，逐项确认拟提交文件；不要使用 `git add -f` 强行加入被忽略的私有文件。若曾把令牌或授权数据提交到其他仓库，单纯删除文件或补 `.gitignore` 不会清除旧提交，应先撤销或更换相关凭证。
+</details>
