@@ -129,3 +129,7 @@ npm.cmd run repair
 桌面端关闭由它启动的网页服务时，若机器人或图片转换还在运行，会先请求安全停止。由其他 PowerShell 窗口启动的网页服务，需要回到那个窗口关闭；桌面端不会强行结束它。
 
 </details>
+
+## 开发说明
+
+本项目基于 [aaeddy/wolfxbot](https://github.com/aaeddy/wolfxbot)，后续功能和文档主要由 AI 辅助开发。AI 生成的内容可能存在错误，实际使用前请核对配置，并在建造后复查结果。
