@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>场地坐标 · 地图画控制台</title>
+<style>
+  :root { color-scheme:light; --ink:#362e48; --sub:#796e8b; --pink:#e961a2; --purple:#8261d6; --line:#f0e2ef; --paper:#fff; --soft:#fff3f9 }
+  * { box-sizing:border-box }
+  body { margin:0; color:var(--ink); font:15px/1.55 "Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif; background:radial-gradient(circle at 8% 0%,#ffe0ed,transparent 31rem),radial-gradient(circle at 95% 0%,#eee3ff,transparent 35rem),#fff9fc }
+  main { width:min(1120px,calc(100% - 28px)); margin:0 auto; padding:28px 0 65px }
+  header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:24px 28px; border-radius:23px; color:#fff; background:linear-gradient(115deg,#eb68a5,#b267d2 53%,#806be4); box-shadow:0 18px 42px #a95caa32 }
+  h1 { margin:2px 0; font-size:29px } header p { margin:0; opacity:.93 } header a { color:#fff; text-decoration:none; border:1px solid #ffffff8a; border-radius:11px; padding:9px 14px; white-space:nowrap; font-weight:700 }
+  .notice { margin:17px 0; padding:12px 16px; border:1px solid #f4dae9; border-radius:14px; background:#fff; color:var(--sub) }
+  .toolbar { display:flex; align-items:center; gap:11px; position:sticky; top:0; z-index:2; padding:13px 0; background:#fff9fce8; backdrop-filter:blur(12px) }
+  button { min-height:40px; padding:8px 15px; border:1px solid #e9d8ea; border-radius:10px; background:#fff; color:var(--ink); font:inherit; font-weight:750; cursor:pointer }
+  button:hover:not(:disabled) { border-color:#cf9bc8; box-shadow:0 5px 14px #b661a525 } button:disabled { opacity:.45; cursor:not-allowed }
+  #unlock,#save { background:var(--pink); color:#fff; border-color:transparent } #save { background:var(--purple) } #status { color:var(--sub); font-size:13px }
+  section { margin:15px 0; padding:22px; border:1px solid var(--line); border-radius:20px; background:var(--paper); box-shadow:0 10px 32px #9d638b14 }
+  h2 { margin:0 0 4px; font-size:20px } section p { margin:0 0 15px; color:var(--sub); font-size:13px }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:13px }
+  .tile { padding:13px; border:1px solid #f1e5ef; border-radius:13px; background:#fffafd }
+  .tile label { display:block; margin-bottom:7px; font-weight:750 } .tile small { display:block; color:var(--sub); margin-top:6px }
+  .xyz { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px }
+  .xyz span { display:flex; align-items:center; gap:3px; color:var(--sub); font-size:12px }
+  input,select { width:100%; min-width:0; height:39px; padding:7px 8px; border:1px solid #e9d6e7; border-radius:9px; color:var(--ink); background:#fff; font:inherit }
+  input:disabled,select:disabled { color:#695d77; background:#f8f5f9; opacity:1 }
+  input:focus,select:focus { outline:2px solid #f6bbda; border-color:var(--pink) }
+  .color-dot { display:inline-block; width:11px; height:11px; margin-right:7px; border-radius:3px; vertical-align:middle; border:1px solid #0002 }
+  .warn { border-color:#f4c5d9; color:#9b456c; background:#fff4f8 }
+  @media(max-width:650px) { header { align-items:flex-start; flex-direction:column } .toolbar { flex-wrap:wrap } section { padding:16px } }
+</style>
+<link rel="stylesheet" href="/pink-theme.css">
+</head>
+<body class="site-page"><main>
+<header><div><div>MAP ART · SITE SETTINGS</div><h1>仓库与领地设置</h1><p>搬迁仓库或更换领地时，在这里修改。</p></div><a href="/">返回建造页面 ↗</a></header>
+<div class="notice">首次使用先填写服务器、主机器人和场地。第二机器人仅在双人建造时需要。投影起点与建造传送落点在建造页面设置。</div>
+<div class="toolbar"><button id="unlock" type="button">🔒 取消锁定并编辑</button><button id="save" type="button" disabled>保存修改</button><button id="cancel" type="button" disabled>放弃修改</button><span id="status" role="status">正在读取…</span></div>
+<section><h2>服务器与机器人</h2><p>登录缓存标签用于区分本机的微软登录资料；游戏名是进服后显示的名称。主机器人负责单人建造和双人模式的右半边。</p><div class="grid" id="accounts"></div></section>
+<section><h2>传送领地</h2><p>只填名称，不用输入 /res tp。机器人下一次启动会按这里的名称传送。</p><div class="grid" id="residences"></div></section>
+<section><h2>材料仓库</h2><p>材料领地落点用于确认传送是否成功。桶列层数决定机器人向上检查多少层。</p><div class="grid" id="basics"></div></section>
+<section><h2>材料桶位置</h2><p>平滑石头及 16 色地毯，逐项填写第 0 层桶的世界坐标。更高层由“桶列层数”和站位规则推算。</p><div class="grid" id="columns"></div></section>
+<section><h2>食物箱与丢弃点</h2><p>食物箱站位和丢弃站位都应是脚下有安全方块的位置。丢弃方向必须确实朝向虚空。</p><div class="grid" id="other"></div></section>
+<div class="notice warn">保存只改变后续启动的机器人读取的场地坐标，不会移动世界里的桶、箱子或领地。请先在游戏内核对方块与站位。</div>
+</main>
+<script>
+const $ = id => document.getElementById(id)
+const carpetNames = {
+  white_carpet:'白色', orange_carpet:'橙色', magenta_carpet:'品红色', light_blue_carpet:'淡蓝色',
+  yellow_carpet:'黄色', lime_carpet:'黄绿色', pink_carpet:'粉红色', gray_carpet:'灰色',
+  light_gray_carpet:'淡灰色', cyan_carpet:'青色', purple_carpet:'紫色', blue_carpet:'蓝色',
+  brown_carpet:'棕色', green_carpet:'绿色', red_carpet:'红色', black_carpet:'黑色'
+}
+const carpetColors = ['#f2f2ee','#efaa43','#c660aa','#7ab9dc','#e3d34a','#97c642','#e79bb6','#5e6067','#abb0b0','#408f9a','#814da1','#344d9b','#745238','#5d8737','#b3494b','#27282c']
+let loaded, accountLoaded, order = [], unlocked = false
+function xyz(id, label, value, hint = '') {
+  const axes = ['x','y','z']
+  return `<div class="tile"><label>${label}</label><div class="xyz">${axes.map(axis => `<span>${axis.toUpperCase()}<input type="number" step="1" id="${id}-${axis}" value="${value[axis]}" disabled></span>`).join('')}</div>${hint ? `<small>${hint}</small>` : ''}</div>`
+}
+function number(id, label, value, hint) { return `<div class="tile"><label for="${id}">${label}</label><input id="${id}" type="number" step="1" value="${value}" disabled><small>${hint}</small></div>` }
+function textField(id, label, value, hint) { return `<div class="tile"><label for="${id}">${label}</label><input id="${id}" type="text" maxlength="64" value="${value}" disabled><small>${hint}</small></div>` }
+function plus(a,b) { return { x:a.x+b.x, y:a.y+b.y, z:a.z+b.z } }
+function minus(a,b) { return { x:a.x-b.x, y:a.y-b.y, z:a.z-b.z } }
+function point(id) {
+  const data = {}
+  for (const axis of ['x','y','z']) {
+    const input = $(`${id}-${axis}`)
+    if (!/^-?\d+$/.test(input.value.trim())) throw Error(`${id} 的 ${axis.toUpperCase()} 必须是整数`)
+    data[axis] = Number(input.value)
+  }
+  return data
+}
+function integer(id) { const value = $(id).value.trim(); if (!/^-?\d+$/.test(value)) throw Error(`${id} 必须是整数`); return Number(value) }
+function render() {
+  const s = loaded
+  const a = accountLoaded
+  $('accounts').innerHTML = textField('serverHost','服务器地址',a.host,'只填域名或 IP，不带端口') +
+    number('serverPort','服务器端口',a.port,'通常是 25565') +
+    textField('rightUsername','主机器人 · 登录缓存标签',a.right.username,'本机微软登录资料的标识；可自定，不是密码') +
+    textField('rightGameName','主机器人 · 游戏名',a.right.expectedMinecraftName,'例如游戏里显示的机器人名称；不必与缓存标签相同') +
+    textField('leftUsername','第二机器人 · 登录缓存标签',a.left.username,'仅双人建造需要；改用其他账号时会启用独立授权缓存') +
+    textField('leftGameName','第二机器人 · 游戏名',a.left.expectedMinecraftName,'仅双人建造需要；单人可留空')
+  $('residences').innerHTML = textField('materialResidence','材料领地',s.materialResidence,'取地毯、平滑石和食物的地方') +
+    textField('buildResidence','建造子领地',s.buildResidence,'传送到地图画附近的地方')
+  $('basics').innerHTML = xyz('materialArrival','材料领地传送落点',s.materialArrival,'机器人用它确认是否到达仓库') +
+    xyz('materialAnchor','桶列参考点',s.materialAnchor,'通常不用改；下方各桶填写实际世界坐标') +
+    xyz('storageAccessOffset','桶前站位偏移',s.storageAccessOffset,'机器人站在桶的哪一侧，例如 Z +2') +
+    number('storageLevels','桶列层数',s.storageLevels,'机器人从底层开始依次检查') +
+    number('storageAccessYStep','每层站位高度差',s.storageAccessYStep,'相邻两层桶的站位要升高几格')
+  $('columns').innerHTML = `<div class="tile"><label>平滑石头 · smooth_stone</label><div class="xyz">${['x','y','z'].map(axis => `<span>${axis.toUpperCase()}<input type="number" step="1" id="col-smooth_stone-${axis}" value="${s.materialAnchor[axis] + s.columns.smooth_stone[axis]}" disabled></span>`).join('')}</div></div>` +
+    order.map((name,index) => {
+      const world = plus(s.materialAnchor,s.columns[name]); const label = `${index+1}. <i class="color-dot" style="background:${carpetColors[index]}"></i>${carpetNames[name]} · ${name}`
+      return xyz(`col-${name}`,label,world)
+    }).join('')
+  $('other').innerHTML = xyz('foodChestPosition','食物箱方块',s.foodChestPosition) + xyz('foodChestAccess','食物箱站位',s.foodChestAccess) + xyz('discardStand','丢弃站位',s.discardStand) + `<div class="tile"><label for="discardFacing">丢弃方向</label><select id="discardFacing" disabled><option value="west">西 west</option><option value="east">东 east</option><option value="north">北 north</option><option value="south">南 south</option></select><small>请核实这一侧确实通向虚空</small></div>`
+  $('discardFacing').value = s.discardFacing
+  setLocked(true)
+}
+function setLocked(locked) {
+  unlocked = !locked
+  document.querySelectorAll('input,select').forEach(input => { input.disabled = locked })
+  $('unlock').textContent = locked ? '🔒 取消锁定并编辑' : '🔓 已解锁编辑'
+  $('unlock').disabled = !locked
+  $('save').disabled = locked
+  $('cancel').disabled = locked
+  $('status').textContent = locked ? '已锁定 · 仅查看' : '编辑中 · 尚未保存'
+}
+async function load() {
+  const [siteResponse, accountResponse] = await Promise.all([
+    fetch('/api/site-settings', { cache:'no-store' }), fetch('/api/connection-settings', { cache:'no-store' })
+  ])
+  const result = await siteResponse.json(), accounts = await accountResponse.json()
+  if (!siteResponse.ok || !accountResponse.ok) throw Error(result.error || accounts.error || '读取失败')
+  loaded = result.settings; accountLoaded = accounts.settings; order = result.carpets
+  render()
+  if (result.running) { $('unlock').disabled = true; $('status').textContent = '机器人运行中 · 暂不能编辑' }
+  else if (accounts.missing?.length) $('status').textContent = '开工前还需填写：' + accounts.missing.join('、')
+}
+function collectAccounts() {
+  return {
+    host:$('serverHost').value.trim(), port:integer('serverPort'),
+    right:{ username:$('rightUsername').value.trim(), expectedMinecraftName:$('rightGameName').value.trim() },
+    left:{ username:$('leftUsername').value.trim(), expectedMinecraftName:$('leftGameName').value.trim() }
+  }
+}
+function collect() {
+  const anchor = point('materialAnchor')
+  return {
+    materialResidence:$('materialResidence').value.trim(), buildResidence:$('buildResidence').value.trim(),
+    materialArrival:point('materialArrival'), materialAnchor:anchor,
+    storageAccessOffset:point('storageAccessOffset'), storageLevels:integer('storageLevels'),
+    storageAccessYStep:integer('storageAccessYStep'),
+    columns:Object.fromEntries(['smooth_stone',...order].map(name => [name, minus(point(`col-${name}`),anchor)])),
+    foodChestPosition:point('foodChestPosition'), foodChestAccess:point('foodChestAccess'),
+    discardStand:point('discardStand'), discardFacing:$('discardFacing').value
+  }
+}
+$('unlock').onclick = () => { if (loaded) setLocked(false) }
+$('cancel').onclick = () => { if (confirm('放弃未保存的坐标修改？')) render() }
+$('save').onclick = async () => {
+  try {
+    const settings = collect()
+    const accounts = collectAccounts()
+    if (!confirm(`确认保存服务器、机器人和场地设置？\n\n服务器：${accounts.host || '未填写'}\n主机器人：${accounts.right.expectedMinecraftName || '未填写'}\n材料领地：${settings.materialResidence}\n建造子领地：${settings.buildResidence}\n\n机器人下一次启动将使用这些设置。`)) return
+    $('save').disabled = true; $('status').textContent = '正在保存…'
+    const accountResponse = await fetch('/api/connection-settings', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ confirm:true, settings:accounts }) })
+    const accountResult = await accountResponse.json()
+    if (!accountResponse.ok) throw Error(accountResult.error || '账号保存失败')
+    const response = await fetch('/api/site-settings', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ confirm:true, settings }) })
+    const result = await response.json()
+    if (!response.ok) throw Error(result.error || '场地保存失败；账号已保存，请重试')
+    loaded = result.settings; accountLoaded = accountResult.settings; render()
+    const checkResponse = await fetch('/api/connection-settings', { cache:'no-store' })
+    const check = await checkResponse.json()
+    $('status').textContent = '已保存并重新锁定' + (check.missing?.length ? '；开工前仍需补：' + check.missing.join('、') : '')
+  } catch(error) { $('save').disabled = false; $('status').textContent = '保存失败：' + error.message; alert(error.message) }
+}
+window.addEventListener('beforeunload', event => { if (unlocked) { event.preventDefault(); event.returnValue = '' } })
+load().catch(error => { $('status').textContent = '读取失败：' + error.message })
+</script>
+</body></html>

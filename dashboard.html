@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地图画控制台</title>
+<style>
+  :root { --ink:#1c2741; --muted:#71809d; --line:#e7ebf4; --violet:#7257f4; --blue:#3b9df8; --panel:rgba(255,255,255,.9); --shadow:0 16px 45px rgba(49,65,113,.12); }
+  * { box-sizing:border-box }
+  body { min-height:100vh; margin:0; color:var(--ink); font:15px/1.55 Inter,"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif; background:radial-gradient(circle at 5% 0%,#dcefff 0,transparent 32rem),radial-gradient(circle at 95% 2%,#f8dcff 0,transparent 35rem),#f7f9fd }
+  .shell { width:min(1160px,calc(100% - 30px)); margin:0 auto; padding:30px 0 48px }
+  .hero { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:26px 28px; color:#fff; border-radius:24px; background:linear-gradient(120deg,#7257f4,#5f77f7 52%,#37a6eb); box-shadow:0 18px 36px rgba(88,90,210,.28) }
+  .eyebrow { margin:0 0 2px; font-size:12px; letter-spacing:.12em; font-weight:800; opacity:.78 }
+  h1 { margin:0; font-size:clamp(25px,4vw,34px); letter-spacing:-.04em }
+  .hero-copy { max-width:720px; margin:8px 0 0; opacity:.92 }
+  #run-notice { display:none; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 -2px; padding:11px 14px; border-radius:13px; font-weight:750; box-shadow:var(--shadow) }
+  #run-notice.visible { display:flex } #run-notice.success { color:#087255; background:#dff9ed; border:1px solid #bcebd8 } #run-notice.error { color:#a54460; background:#fff0f4; border:1px solid #ffd5df } #run-notice.stopped { color:#72633a; background:#fff7d8; border:1px solid #f3e1a1 }
+  #dismiss-notice { min-height:28px; padding:3px 8px; color:inherit; border-color:currentColor; background:rgba(255,255,255,.55); font-size:12px }
+  button,input,select { min-height:39px; border:1px solid #dfe5f1; border-radius:10px; padding:8px 11px; color:var(--ink); background:#fff; font:inherit; outline:none; transition:.18s ease }
+  input,select { width:100% }
+  input:focus,select:focus { border-color:#9b8cff; box-shadow:0 0 0 3px rgba(115,87,246,.13) }
+  button { width:auto; cursor:pointer; font-weight:750 }
+  button:hover:not(:disabled) { transform:translateY(-1px); border-color:#c9c1ff; box-shadow:0 7px 15px rgba(80,92,150,.12) }
+  button:disabled { opacity:.45; cursor:not-allowed }
+  #stop-bot { color:#a5314d; border-color:transparent; background:#fff4f6 }
+  .hero-actions { display:flex; align-items:center; gap:9px; flex-wrap:wrap; justify-content:flex-end }
+  .studio-link { padding:9px 13px; border-radius:10px; color:#fff; border:1px solid rgba(255,255,255,.6); text-decoration:none; font-weight:750 }
+  .studio-link:hover { background:rgba(255,255,255,.16) }
+  #convert,#add,[data-start] { color:#fff; border-color:transparent; background:linear-gradient(135deg,var(--violet),#5f81f7) }
+  [data-verify] { color:#38619b; border-color:transparent; background:#eaf5ff }
+  [data-delete] { color:#b05370; border-color:transparent; background:#fff0f4 }
+  section { padding:21px; margin:18px 0; border:1px solid rgba(223,228,240,.9); border-radius:20px; background:var(--panel); box-shadow:var(--shadow); backdrop-filter:blur(10px) }
+  section b { display:inline-block; margin-bottom:12px; font-size:17px; letter-spacing:-.02em }
+  section b::before { content:"✦"; margin-right:8px; color:#765bf3 }
+  small { color:var(--muted) }
+  #projections,#schematics { min-height:46px; max-height:110px; margin:0 0 10px; padding:9px 11px; overflow:auto; border-radius:12px; color:#596783; background:#f8faff; font-size:13px }
+  .drop-zone { margin:0 0 14px; padding:19px; border:2px dashed #cfc8ff; border-radius:15px; color:#6759ba; background:linear-gradient(135deg,#f5f2ff,#f0f9ff); text-align:center; transition:.18s ease }
+  .drop-zone.dragging { border-color:#7257f4; background:#eae5ff; transform:scale(1.01) }
+  .drop-zone strong { display:block; font-size:14px } .drop-zone span { display:block; margin-top:4px; color:#7783a0; font-size:12px }
+  .drop-zone label { display:inline-block; margin-top:10px; padding:5px 10px; border-radius:8px; color:#fff; background:#7257f4; cursor:pointer; font-size:12px; font-weight:800 }
+  .drop-zone input { display:none } #upload-status { min-height:18px; margin:-7px 0 10px; color:#657490; font-size:12px }
+  #projection-manager { display:grid; gap:7px; margin:0 0 12px }
+  .projection-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 10px; border:1px solid #e6eaf4; border-radius:11px; background:#fff; font-size:13px }
+  .projection-name { overflow:hidden; color:#4d5c79; text-overflow:ellipsis; white-space:nowrap; font-weight:750 }
+  .projection-meta { color:#8491aa; font-size:11px } .projection-actions { display:flex; flex:none; gap:4px }
+  .projection-actions button { min-height:28px; padding:3px 7px; color:#546584; font-size:11px }
+  [data-archive-projection] { color:#ad526b !important; background:#fff0f4 !important; border-color:transparent !important }
+  .preview-modal { position:fixed; z-index:30; inset:0; display:none; place-items:center; padding:18px; background:rgba(19,27,53,.45); backdrop-filter:blur(4px) }
+  .preview-modal.visible { display:grid }
+  .preview-card { width:min(620px,100%); max-height:calc(100vh - 36px); overflow:auto; padding:18px; border:1px solid rgba(255,255,255,.65); border-radius:20px; background:#fff; box-shadow:0 28px 75px rgba(12,24,57,.3) }
+  .preview-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px }
+  .preview-head b { font-size:16px }.preview-head button { min-height:31px; padding:4px 9px; color:#566683; font-size:12px }
+  #preview-image { display:block; width:min(100%,520px); margin:0 auto; border:1px solid #e4e9f3; border-radius:12px; image-rendering:pixelated; background:#f2f5fa }
+  #preview-loading,#preview-meta { min-height:22px; text-align:center; color:#71809d; font-size:13px } #preview-meta { margin-top:10px }
+  .check-list { display:grid; gap:8px; margin:12px 0 0 }.check-item { padding:8px 10px; border-radius:10px; font-size:13px }.check-item.ok { color:#087255; background:#e6faf0 }.check-item.warning { color:#78632a; background:#fff8dd }.check-item.error { color:#aa405d; background:#fff0f4 }
+  #projections + b { margin-top:10px }
+  #input,#output { width:calc(42% - 6px); margin-right:6px }
+  #convert { width:15% }
+  #location-guide { margin:0 0 16px; padding:12px 14px; border-radius:13px; color:#4b5975; background:linear-gradient(90deg,#f0edff,#edf8ff); font-size:13px }
+  #location-guide code { color:#624bd5; font-weight:800 }
+  #location-guide button { min-height:30px; margin-left:4px; padding:4px 8px; color:#5947c7; border-color:#d8d1ff; background:rgba(255,255,255,.75); font-size:12px }
+  .transit-editor { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:7px; align-items:center; margin:12px 0 4px; padding:11px; border:1px solid #dce6fa; border-radius:12px; background:#f5f9ff; } .transit-editor label { grid-column:1 / -1; color:#50617d; font-size:13px; font-weight:750; } #save-transit { color:#fff; border-color:transparent; background:#4f79d8; }
+  .worker-editor { display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end; margin:12px 0; padding:11px; border:1px solid #e0dafa; border-radius:12px; background:#faf9ff; } .worker-editor label { color:#50617d; font-size:13px; font-weight:750; } .worker-editor select { margin-top:4px; } .worker-note { grid-column:1 / -1; color:#6d638d; font-size:12px; }
+  #name,#schematic { width:21% } #x,#y,#z { width:13% } #add { width:18% }
+  #jobs { display:grid; gap:10px; margin-top:18px }
+  .job { display:block; padding:14px; border:1px solid #e6eaf4; border-radius:14px; background:#fff }
+  .job b { margin:0; font-size:16px } .job b::before { content:""; margin:0 }
+  .job button { margin:7px 4px 0 0; min-height:33px; padding:5px 10px; font-size:13px }
+  pre { height:300px; margin:12px 0 0; padding:15px; overflow:auto; border:1px solid #17213a; border-radius:14px; color:#d7e6ff; background:#111a2e; box-shadow:inset 0 0 28px rgba(0,0,0,.25); font:12.5px/1.6 "Cascadia Code",Consolas,monospace; white-space:pre-wrap }
+  @media (min-width:900px) { .content-grid { display:grid; grid-template-columns:1fr 1.42fr; gap:18px; align-items:start } .content-grid section { margin:18px 0 } .content-grid section:nth-of-type(3) { grid-column:1 / -1 } }
+  @media (max-width:650px) { .shell { width:min(100% - 20px,1160px); padding-top:10px } .hero { align-items:start; padding:22px 18px; border-radius:18px } .hero-copy { display:none } #input,#output,#convert,#name,#schematic,#x,#y,#z,#add { width:100%; margin:4px 0 } }
+</style>
+<link rel="stylesheet" href="/pink-theme.css">
+</head>
+<body class="dashboard-page"><main class="shell">
+<header class="hero"><div><p class="eyebrow">MAP ART</p><h1>地图画控制台</h1><p class="hero-copy">在这里添加任务、查看进度；图片制作和仓库设置在右侧。</p></div><div class="hero-actions"><a class="studio-link" href="/sites">仓库与领地</a><a class="studio-link" href="/studio">图片制作</a><button id="stop-bot">停止机器人</button></div></header>
+<div id="run-notice" role="status"></div>
+<div id="preview-modal" class="preview-modal" aria-hidden="true"><div class="preview-card" role="dialog" aria-modal="true" aria-labelledby="preview-title"><div class="preview-head"><b id="preview-title">投影缩略图</b><button id="close-preview">关闭</button></div><div id="preview-loading">正在读取方块颜色…</div><img id="preview-image" alt="投影缩略图" hidden><div id="preview-meta"></div></div></div>
+<div id="check-modal" class="preview-modal" aria-hidden="true"><div class="preview-card" role="dialog" aria-modal="true" aria-labelledby="check-title"><div class="preview-head"><b id="check-title">开始前检查</b><div><button id="copy-audit" hidden>复制全部问题坐标</button> <button id="close-check">关闭</button></div></div><div id="check-summary"></div><div id="check-list" class="check-list"></div></div></div>
+<div class="content-grid">
+<section>
+  <b>投影文件</b><div id="projections"></div>
+  <div id="drop-zone" class="drop-zone"><strong>拖入 .litematic 到这里</strong><span>自动保存到「投影文件」并转换为同名 schem</span><label>选择投影文件<input id="projection-file" type="file" accept=".litematic"></label></div>
+  <div id="upload-status"></div>
+  <div id="projection-manager"></div>
+  <b>可建造的 schem 文件</b><div id="schematics"></div>
+  <div><select id="input"></select> → <input id="output" placeholder="文件名，如 第二张图.schem"><button id="convert">转换选中的投影</button></div>
+</section>
+<section>
+  <b>新建地图画任务</b><br>
+  <div id="location-guide">还没有记录上一张地图画的位置。</div>
+  <div class="transit-editor"><label id="transit-label">建造传送落点：机器人传送后实际站着的位置</label><input id="transit-x" placeholder="落点 X"><input id="transit-y" placeholder="落点 Y"><input id="transit-z" placeholder="落点 Z"><button id="save-transit">保存落点</button></div>
+  <div class="worker-editor"><label>建造方式<select id="build-mode"><option value="single">单人建造：一台机器人铺整张</option><option value="dual">双人建造：先铺地基，再各铺一半</option></select></label><div>机器人：<span id="worker-profiles">正在读取…</span> <a href="/sites">修改服务器与账号</a></div><div class="worker-note">双人模式会先由主机器人铺平滑石头，然后两台机器人同时铺左右两半。</div></div>
+  <input id="name" placeholder="任务名"><select id="schematic"></select>
+  <input id="x" placeholder="起点 X"><input id="y" placeholder="Y"><input id="z" placeholder="Z">
+  <small>按投影原方向建造，无需设置旋转。</small>
+  <button id="add">添加任务</button><p class="job-note">进度用于续建；完工后可用“检查漏铺”核对实际方块。</p><div id="jobs"></div>
+</section>
+<section><b>运行记录</b> <button id="copy-log">复制全部记录</button><br><small>可向上翻看旧记录；停在最底部时自动显示最新记录。</small><pre id="log"></pre></section>
+<script>
+const $ = id => document.getElementById(id)
+const esc = value => String(value).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+let auditCopyText = ''
+let workerNames = { right: '右机器人', left: '左机器人' }
+async function api(url, options = {}) {
+  const response = await fetch(url, options)
+  const body = await response.json()
+  if (!response.ok) throw Error(body.error)
+  return body
+}
+function renderRunNotice(run) {
+  const box = $('run-notice')
+  if (!run || run.state === 'idle' || run.state === 'running') {
+    box.className = ''
+    document.title = '地图画控制台'
+    return
+  }
+  const token = [run.state, run.jobName, run.mode, run.at].join('|')
+  if (localStorage.getItem('mapart-dismissed-run') === token) {
+    box.className = ''
+    return
+  }
+  const name = esc(run.jobName || '任务')
+  let kind = 'stopped'
+  let text = '⏸ ' + name + ' 已被终止；未完成区域下次会重新检查。'
+  if (run.state === 'completed') {
+    kind = run.mode === 'verify' ? 'stopped' : 'success'
+    text = run.mode === 'verify'
+      ? '◉ ' + name + ' 复检已结束；请点「查看上次复检」确认是否通过。'
+      : '✓ ' + name + ' 已完成并退出。'
+  } else if (run.state === 'failed') {
+    kind = 'error'
+    text = '⚠ ' + name + ' 未完成：机器人已退出，请查看下方日志。'
+  }
+  box.className = 'visible ' + kind
+  box.innerHTML = '<span>' + text + '</span><button id="dismiss-notice">我知道了</button>'
+  document.title = (run.state === 'completed' && run.mode !== 'verify' ? '✓ ' : '⚠ ') + '地图画控制台'
+  $('dismiss-notice').onclick = () => {
+    localStorage.setItem('mapart-dismissed-run', token)
+    box.className = ''
+  }
+}
+
+function renderProjectionManager(data) {
+  const target = $('projection-manager')
+  target.innerHTML = data.projections.map(file => {
+    const output = file.replace(/\.litematic$/i, '.schem')
+    const status = data.schematics.includes(output) ? '已转换：' + output : '等待自动转换'
+    const job = data.jobs.find(item => item.schematicPath === 'schem/' + output)
+    const preview = data.schematics.includes(output) ? '<button data-preview-schem="' + esc(output) + '" data-preview-job="' + esc(job?.id || '') + '">预览</button>' : ''
+    return '<div class="projection-row"><div class="projection-name">📄 ' + esc(file) + '<div class="projection-meta">' + esc(status) + '</div></div><div class="projection-actions"><button data-use-projection="' + esc(file) + '">使用</button>' + preview + '<button data-reconvert="' + esc(file) + '">重转</button><button data-archive-projection="' + esc(file) + '">移入回收站</button></div></div>'
+  }).join('') || '<div class="projection-meta">暂无投影文件</div>'
+  document.querySelectorAll('[data-use-projection]').forEach(button => button.onclick = () => {
+    const file = button.dataset.useProjection
+    const output = file.replace(/\.litematic$/i, '.schem')
+    $('input').value = file
+    $('output').value = output
+    if ([...$('schematic').options].some(option => option.value === output)) $('schematic').value = output
+    $('name').value = file.replace(/\.litematic$/i, '')
+  })
+  document.querySelectorAll('[data-preview-schem]').forEach(button => button.onclick = () => showSchematicPreview(button.dataset.previewSchem, button.dataset.previewJob))
+  document.querySelectorAll('[data-reconvert]').forEach(button => button.onclick = () => reconvert(button.dataset.reconvert))
+  document.querySelectorAll('[data-archive-projection]').forEach(button => button.onclick = () => archiveProjection(button.dataset.archiveProjection))
+}
+
+async function showSchematicPreview(file, jobId = '') {
+  const modal = $('preview-modal')
+  const image = $('preview-image')
+  modal.classList.add('visible')
+  modal.setAttribute('aria-hidden', 'false')
+  $('preview-title').textContent = '缩略图 · ' + file
+  $('preview-loading').textContent = '正在读取方块颜色…'
+  $('preview-loading').hidden = false
+  $('preview-meta').textContent = ''
+  image.hidden = true
+  try {
+    const preview = await api(jobId ? '/api/preview-job/' + encodeURIComponent(jobId) : '/api/preview/' + encodeURIComponent(file))
+    image.src = preview.image
+    image.hidden = false
+    $('preview-loading').hidden = true
+    $('preview-meta').textContent = preview.width + ' × ' + preview.height + ' × ' + preview.length + '；颜色来自实际 schem。' + (jobId ? ' 青绿色半透明横条为已完成行：' + preview.completedRows + ' 行。' : '')
+  } catch (error) {
+    $('preview-loading').textContent = '无法生成缩略图：' + error.message
+  }
+}
+
+function closeSchematicPreview() {
+  $('preview-modal').classList.remove('visible')
+  $('preview-modal').setAttribute('aria-hidden', 'true')
+  $('preview-image').removeAttribute('src')
+}
+
+async function reconvert(file) {
+  if (!confirm('重新转换 ' + file + '？会覆盖同名 schem。')) return
+  $('upload-status').textContent = '正在重新转换：' + file
+  try {
+    await api('/api/reconvert/' + encodeURIComponent(file), { method: 'POST' })
+    $('upload-status').textContent = '转换完成：' + file
+    refresh()
+  } catch (error) { $('upload-status').textContent = '转换失败：' + error.message }
+}
+
+async function archiveProjection(file) {
+  if (!confirm('将 ' + file + '、同名 schem 和材料统计移入回收站？这不会永久删除。')) return
+  $('upload-status').textContent = '正在移入回收站：' + file
+  try {
+    const result = await api('/api/archive-projection/' + encodeURIComponent(file), { method: 'POST' })
+    $('upload-status').textContent = '已移入 ' + result.folder
+    refresh()
+  } catch (error) { $('upload-status').textContent = '无法移动：' + error.message }
+}
+
+function fileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('无法读取文件'))
+    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.readAsDataURL(file)
+  })
+}
+
+async function uploadProjectionFile(file, overwrite = false) {
+  if (!file) return
+  if (!/\.litematic$/i.test(file.name)) { $('upload-status').textContent = '只接受 .litematic 投影文件'; return }
+  if (file.size > 25 * 1024 * 1024) { $('upload-status').textContent = '文件超过 25 MB，无法上传'; return }
+  $('upload-status').textContent = '正在上传并转换：' + file.name
+  try {
+    await api('/api/upload', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: file.name, data: await fileAsBase64(file), overwrite }) })
+    $('upload-status').textContent = '上传并转换完成：' + file.name
+    refresh()
+  } catch (error) {
+    if (!overwrite && /同名投影已存在/.test(error.message) && confirm('同名投影已存在，确认覆盖并重新转换？')) return uploadProjectionFile(file, true)
+    $('upload-status').textContent = '上传失败：' + error.message
+  }
+}
+
+async function refresh() {
+  const data = await api('/api/status')
+  renderRunNotice(data.lastRun)
+  $('projections').innerHTML = data.projections.map(file => `📄 ${esc(file)}`).join('<br>') || '（暂无）'
+  $('schematics').innerHTML = data.schematics.map(file => `📦 ${esc(file)}`).join('<br>') || '（暂无）'
+  const selectedInput = $('input').value
+  const selectedSchematic = $('schematic').value
+  $('input').innerHTML = data.projections.map(file => `<option value="${esc(file)}">${esc(file)}</option>`).join('')
+  $('schematic').innerHTML = data.schematics.map(file => `<option value="${esc(file)}">${esc(file)}</option>`).join('')
+  if (data.projections.includes(selectedInput)) $('input').value = selectedInput
+  if (data.schematics.includes(selectedSchematic)) $('schematic').value = selectedSchematic
+  renderProjectionManager(data)
+  $('transit-label').textContent = `建造传送落点（${data.buildResidence || '子领地'}）：机器人传送后实际站着的位置`
+  if (data.buildTransit) {
+    for (const [id, value] of [['transit-x', data.buildTransit.x], ['transit-y', data.buildTransit.y], ['transit-z', data.buildTransit.z]]) {
+      if (document.activeElement?.id !== id) $(id).value = value
+    }
+  }
+  if (data.lastJob && data.suggestedOrigin) {
+    const old = data.lastJob.origin
+    const next = data.suggestedOrigin
+    const transit = data.suggestedBuildTransit
+    const transitText = transit ? `<br><strong>建造传送点可设在：</strong><code>${transit.x}, ${transit.y}, ${transit.z}</code>（第一块平滑石前方一格；这是建议，不会自动修改领地。）` : ''
+    $('location-guide').innerHTML = `上一张起点：<code>${old.x}, ${old.y}, ${old.z}</code>。如果下一张叠在上面，X/Z 不变、Y 加 1，建议起点 <code>${next.x}, ${next.y}, ${next.z}</code>。 ${transitText}<button id="use-next">填入建议起点</button> <button id="use-old">填入上一张起点</button> <button id="sync-location">更新上一张位置</button>`
+    $('use-next').onclick = () => { $('x').value = next.x; $('y').value = next.y; $('z').value = next.z }
+    $('use-old').onclick = () => { $('x').value = old.x; $('y').value = old.y; $('z').value = old.z }
+    $('sync-location').onclick = async () => { const raw = prompt('填写当前已铺投影的内部起点 X,Y,Z（例：100,64,100）', `${old.x},${old.y},${old.z}`); if (raw === null) return; const parts = raw.split(',').map(x => Number(x.trim())); if (parts.length !== 3 || parts.some(x => !Number.isFinite(x))) return alert('请按 X,Y,Z 格式填写三个数字'); try { await api('/api/placement-anchor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ origin: { x: parts[0], y: parts[1], z: parts[2] }, rotation: 0 }) }); refresh() } catch (error) { alert(error.message) } }
+  }
+  const profiles = data.workers || {}
+  workerNames = { right: profiles.right?.expectedMinecraftName || profiles.right?.username || '右机器人', left: profiles.left?.expectedMinecraftName || profiles.left?.username || '左机器人' }
+  $('worker-profiles').innerHTML = `主：<strong>${esc(profiles.right?.expectedMinecraftName || '未设置')}</strong>；第二台：<strong>${esc(profiles.left?.expectedMinecraftName || '未设置（单人无需填写）')}</strong>`
+  $('jobs').innerHTML = data.jobs.map(job => {
+    const dual = job.dualProgress || {}
+    const dualActive = Boolean(dual.bootstrap?.done || dual.right?.done || dual.left?.done)
+    const total = job.progress.totalRows || dual.left?.totalRows || dual.right?.totalRows || 0
+    const left = dual.left?.done || 0
+    const right = dual.right?.done || 0
+    const percent = dualActive && total ? Math.round((left + right) * 50 / total) : job.progress.percent || 0
+    const progressText = dualActive ? `双人建造 · 左 ${left}/${total} 行 · 右 ${right}/${total} 行` : `单人建造 · ${job.progress.done}/${total} 行`
+    const audit = job.auditSummary
+    const auditText = audit?.error ? '检查结果读取失败' : audit ? (audit.passed ? '上次检查：通过' : `上次检查：有问题（缺 ${audit.missing}、错 ${audit.wrong}、未读取 ${audit.unloaded}）`) : '尚未检查漏铺'
+    const running = data.running && data.activeId === job.id
+    return `<article class="job"><div class="job-head"><b>${esc(job.name)}</b>${running ? '<span class="job-running">运行中</span>' : `<span class="job-percent">${percent}%</span>`}</div><div class="job-meta">${esc(job.schematicPath)}<span>起点 ${esc(`${job.origin.x}, ${job.origin.y}, ${job.origin.z}`)}</span></div><div class="job-progress"><span style="width:${Math.max(0, Math.min(100, percent))}%"></span></div><div class="job-foot"><span>${esc(progressText)}</span><span>${esc(auditText)}</span></div><div class="job-actions"><button data-start="${job.id}" ${data.running ? 'disabled' : ''}>开始建造</button><button data-preflight="${job.id}" ${data.running ? 'disabled' : ''}>开工前检查</button><button data-verify="${job.id}" ${data.running ? 'disabled' : ''}>检查漏铺</button><button data-audit="${job.id}" ${audit && !audit.error ? '' : 'disabled'}>上次结果</button><button data-delete="${job.id}" ${running ? 'disabled' : ''}>删除</button></div></article>`
+  }).join('') || '（尚未创建任务）'
+  document.querySelectorAll('[data-start]').forEach(button => button.onclick = () => start(button.dataset.start))
+  document.querySelectorAll('[data-preflight]').forEach(button => button.onclick = () => preflight(button.dataset.preflight))
+  document.querySelectorAll('[data-verify]').forEach(button => button.onclick = () => verify(button.dataset.verify))
+  document.querySelectorAll('[data-audit]').forEach(button => button.onclick = () => showAudit(button.dataset.audit))
+  document.querySelectorAll('[data-delete]').forEach(button => button.onclick = () => deleteJob(button.dataset.delete))
+  const log = $('log')
+  const oldTop = log.scrollTop
+  const followLog = oldTop + log.clientHeight >= log.scrollHeight - 8
+  log.textContent = data.logs.join('\n')
+  log.scrollTop = followLog ? log.scrollHeight : oldTop
+}
+async function preflight(id) {
+  auditCopyText = ''
+  $('copy-audit').hidden = true
+  const modal = $('check-modal')
+  modal.classList.add('visible')
+  modal.setAttribute('aria-hidden', 'false')
+  $('check-title').textContent = '开始前检查'
+  $('check-summary').textContent = '正在读取任务和本地配置…'
+  $('check-list').innerHTML = ''
+  try {
+    const result = await api('/api/preflight/' + encodeURIComponent(id))
+    $('check-title').textContent = '开始前检查 · ' + result.jobName
+    $('check-summary').textContent = result.passed ? '✓ 本地检查通过。请确认游戏内子领地落点和投影下方支撑层。' : '⚠ 本地检查未通过；请先处理红色项目。'
+    $('check-list').innerHTML = result.checks.map(check => '<div class="check-item ' + check.level + '">' + (check.level === 'ok' ? '✓ ' : check.level === 'warning' ? '• ' : '⚠ ') + esc(check.text) + '</div>').join('')
+  } catch (error) { $('check-summary').textContent = '检查失败：' + error.message }
+}
+async function showAudit(id) {
+  const modal = $('check-modal')
+  modal.classList.add('visible')
+  modal.setAttribute('aria-hidden', 'false')
+  $('check-title').textContent = '上次复检结果'
+  $('check-summary').textContent = '正在读取完整复检报告…'
+  $('check-list').innerHTML = ''
+  $('copy-audit').hidden = true
+  auditCopyText = ''
+  try {
+    const report = await api('/api/audit/' + encodeURIComponent(id))
+    const summary = report.summary
+    const when = summary.generatedAt ? new Date(summary.generatedAt).toLocaleString('zh-CN') : '时间未知'
+    $('check-summary').textContent = `上次复检快照：${summary.passed ? '通过' : '发现问题'}。时间 ${when}；核对 ${summary.checked} 块，正确 ${summary.correct}，缺失 ${summary.missing}，错色/障碍 ${summary.wrong}，未加载 ${summary.unloaded}。这不是实时世界状态。`
+    const labels = { missing: '缺失', wrong: '错色/障碍', unloaded: '未加载' }
+    const issues = Object.entries(labels).flatMap(([kind, label]) => (report.issues[kind] || []).map(entry => ({ label, entry })))
+    auditCopyText = issues.map(({ label, entry }) => `${label}\t${entry.world?.x},${entry.world?.y},${entry.world?.z}\t预期 ${entry.expected}\t实际 ${entry.actual || '无'}`).join('\n')
+    $('copy-audit').hidden = issues.length === 0
+    const visible = issues.slice(0, 200).map(({ label, entry }) => `<div class="check-item ${label === '未加载' ? 'warning' : 'error'}">${esc(label)}：${esc(`${entry.world?.x}, ${entry.world?.y}, ${entry.world?.z}`)}；预期 ${esc(entry.expected)}，实际 ${esc(entry.actual || '无')}</div>`).join('')
+    $('check-list').innerHTML = visible || '<div class="check-item ok">未发现缺失、错色或未加载方块。</div>'
+    if (issues.length > 200) $('check-list').innerHTML += `<div class="check-item warning">窗口仅展示前 200 条；点击「复制全部问题坐标」可取得全部 ${issues.length} 条。</div>`
+  } catch (error) { $('check-summary').textContent = '无法读取复检报告：' + error.message }
+}
+function closePreflight() {
+  $('check-modal').classList.remove('visible')
+  $('check-modal').setAttribute('aria-hidden', 'true')
+}
+async function start(id) {
+  const buildMode = $('build-mode').value
+  const text = buildMode === 'dual'
+    ? `确认使用双人模式？${workerNames.right} 会先铺完整条平滑石头；成功后铺右半，${workerNames.left} 铺左半。`
+    : `确认使用单人 ${workerNames.right} 铺设整张？`
+  if (!confirm(text)) return
+  try { await api(`/api/start/${id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ buildMode }) }); refresh() } catch (error) { alert(error.message) }
+}
+async function verify(id) {
+  if (!confirm('复检只读取地图方块，不会放置或破坏。开始吗？')) return
+  try { await api(`/api/verify/${id}`, { method: 'POST' }); refresh() } catch (error) { alert(error.message) }
+}
+async function deleteJob(id) { if (!confirm('删除此任务记录？不会删除 schem、投影或进度文件。')) return; try { await api(`/api/delete/${id}`, { method: 'POST' }); refresh() } catch (error) { alert(error.message) } }
+$('stop-bot').onclick = async () => { if (!confirm('终止当前机器人？未完成区域下次会重新检查。')) return; try { await api('/api/stop', {method:'POST'}); refresh() } catch (error) { alert(error.message) } }
+$('save-transit').onclick = async () => { const origin = { x: +$('transit-x').value, y: +$('transit-y').value, z: +$('transit-z').value }; if (![origin.x, origin.y, origin.z].every(Number.isFinite)) return alert('请填写完整的传送落点 X/Y/Z'); if (!confirm(`确认把建造传送落点改为 ${origin.x}, ${origin.y}, ${origin.z}？地图画起点不会改变。`)) return; try { await api('/api/build-transit', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(origin) }); alert('落点已保存；下次启动机器人时生效。'); refresh() } catch (error) { alert(error.message) } }
+$('add').onclick = async () => {
+  try {
+    await api('/api/jobs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('name').value, schematicPath: `schem/${$('schematic').value}`, origin: { x: +$('x').value, y: +$('y').value, z: +$('z').value }, rotation: 0 }) })
+    refresh()
+  } catch (error) { alert(error.message) }
+}
+$('convert').onclick = async () => {
+  try {
+    await api('/api/convert', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ input: $('input').value, output: $('output').value }) })
+    setTimeout(refresh, 800)
+  } catch (error) { alert(error.message) }
+}
+$('input').onchange = () => { const file = $('input').value; if (file) $('output').value = file.replace(/\.litematic$/i, '.schem') }
+$('projection-file').onchange = () => uploadProjectionFile($('projection-file').files[0])
+$('close-preview').onclick = closeSchematicPreview
+$('preview-modal').onclick = event => { if (event.target === $('preview-modal')) closeSchematicPreview() }
+$('close-check').onclick = closePreflight
+$('copy-audit').onclick = async () => {
+  try { await navigator.clipboard.writeText(auditCopyText); $('copy-audit').textContent = '已复制'; setTimeout(() => $('copy-audit').textContent = '复制全部问题坐标', 1200) }
+  catch { alert('复制失败，请检查浏览器剪贴板权限。') }
+}
+$('check-modal').onclick = event => { if (event.target === $('check-modal')) closePreflight() }
+document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeSchematicPreview(); closePreflight() } })
+const dropZone = $('drop-zone')
+;['dragenter', 'dragover'].forEach(event => dropZone.addEventListener(event, value => { value.preventDefault(); dropZone.classList.add('dragging') }))
+;['dragleave', 'drop'].forEach(event => dropZone.addEventListener(event, value => { value.preventDefault(); dropZone.classList.remove('dragging') }))
+dropZone.addEventListener('drop', event => uploadProjectionFile(event.dataTransfer.files[0]))
+$('copy-log').onclick = async () => {
+  try { await navigator.clipboard.writeText($('log').textContent); $('copy-log').textContent = '已复制'; setTimeout(() => $('copy-log').textContent = '复制全部日志', 1200) }
+  catch { alert('复制失败，请在日志框内 Ctrl+A、Ctrl+C。') }
+}
+refresh().catch(error => $('log').textContent = `页面读取失败：${error.message}`)
+setInterval(() => refresh().catch(() => {}), 1500)
+</script>
+</div></main></body></html>

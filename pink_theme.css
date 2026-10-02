@@ -1,0 +1,77 @@
+/* One light rose theme shared by the builder, image studio and site settings. */
+:root {
+  --ink:#372d45;
+  --muted:#81718c;
+  --sub:#81718c;
+  --line:#f0dfea;
+  --violet:#e45d9d;
+  --blue:#b779ce;
+  --panel:#fffdfef2;
+  --shadow:0 16px 42px #b066931c;
+}
+body {
+  color:var(--ink);
+  background:radial-gradient(circle at 8% 0%,#ffe1ed 0,transparent 34rem),
+    radial-gradient(circle at 95% 3%,#f4dcf4 0,transparent 35rem),#fff9fc;
+}
+.hero,.site-page header {
+  background:linear-gradient(115deg,#ec6ca8 0%,#d471b8 53%,#9877dc 100%);
+  box-shadow:0 18px 38px #ae609d30;
+}
+section,.panel,.step {
+  border-color:#f0dfeb;
+  box-shadow:0 12px 35px #a7679515;
+}
+button,input,select,.job,.tile { border-color:#ecd8e7; }
+input:focus,select:focus { border-color:#e45d9d; box-shadow:0 0 0 3px #eb80b438; }
+button:hover:not(:disabled) { border-color:#eab0d0; box-shadow:0 7px 17px #b7609a23; }
+.dashboard-page section b::before { color:#e45d9d; }
+.dashboard-page #convert,.dashboard-page #add,.dashboard-page [data-start],
+.studio-page #convert-preview {
+  background:linear-gradient(125deg,#ec6da8,#cb72bf);
+  color:#fff;
+}
+.dashboard-page [data-verify] { color:#9a4f8d; background:#fbedf8; }
+.dashboard-page #stop-bot,.dashboard-page [data-delete] { color:#b05276; background:#fff1f5; }
+.dashboard-page #location-guide,.dashboard-page .transit-editor,
+.dashboard-page .worker-editor,.studio-page .fixed,.studio-page .safety {
+  background:linear-gradient(95deg,#fff0f7,#f9edfc);
+  border-color:#efd8e8;
+  color:#744e75;
+}
+.dashboard-page #location-guide code { color:#b54f93; }
+.dashboard-page .drop-zone,.studio-page .drop {
+  color:#a84c88;
+  border-color:#eab7d3;
+  background:linear-gradient(120deg,#fff0f7,#f8efff);
+}
+.dashboard-page .drop-zone label,.studio-page .step span { background:#e45d9d; }
+.dashboard-page #projections,.dashboard-page #schematics,
+.dashboard-page .preview-modal .preview-card,.studio-page .preview {
+  background:#fff8fc;
+  border-color:#efdfea;
+}
+.dashboard-page pre {
+  color:#44334f;
+  background:#fff9fd;
+  border-color:#efdce9;
+  box-shadow:inset 0 0 18px #d8acd41a;
+}
+.dashboard-page .job-note { margin:18px 0 2px; color:#806c86; font-size:13px; }
+.dashboard-page .job { padding:17px 18px; }
+.dashboard-page .job-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.dashboard-page .job-head b { margin:0; font-size:18px; }
+.dashboard-page .job-meta { display:flex; flex-wrap:wrap; gap:5px 16px; margin:6px 0 13px; color:#806f88; font-size:13px; overflow-wrap:anywhere; }
+.dashboard-page .job-percent { color:#c25191; font-weight:800; }
+.dashboard-page .job-running { padding:2px 9px; border-radius:999px; color:#a8447f; background:#ffe6f2; font-size:12px; font-weight:800; }
+.dashboard-page .job-progress { height:7px; overflow:hidden; border-radius:999px; background:#f8e9f2; }
+.dashboard-page .job-progress span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#eb6da7,#bc77d2); }
+.dashboard-page .job-foot { display:flex; flex-wrap:wrap; gap:5px 18px; margin-top:10px; color:#806f88; font-size:12px; }
+.dashboard-page .job-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.dashboard-page .job-actions button { margin:4px 0 0; }
+.dashboard-page .job-actions [data-start] { color:#fff; background:linear-gradient(120deg,#eb6da7,#c876c6); }
+.studio-page #generate.preview-ready { color:#b54f93; border-color:#e8aad0; background:#fff3fa; }
+.studio-page #generate { color:#8d638a; border-color:#e8d8e8; background:#fff9fc; }
+.studio-page .output { color:#684f74; border-color:#efdde9; background:#fff8fc; }
+.studio-page .output strong { color:#a54e90; }
+.site-page .tile { background:#fffafd; }

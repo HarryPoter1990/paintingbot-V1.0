@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图片制作 · 地图画工作台</title>
+<style>
+  :root { --ink:#24304a; --sub:#6c7892; --violet:#7154e9; --blue:#2e9de4; --line:#e3e7f0 }
+  * { box-sizing:border-box }
+  body { margin:0; min-height:100vh; color:var(--ink); font:15px/1.5 Inter,"Microsoft YaHei UI",system-ui,sans-serif; background:radial-gradient(circle at 8% 0,#e1edff,transparent 32rem),radial-gradient(circle at 90% 0,#ffe9f7,transparent 32rem),#f7f9fd }
+  .shell { width:min(1140px,calc(100% - 28px)); margin:auto; padding:28px 0 45px }
+  .hero { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:26px 28px; border-radius:24px; color:white; background:linear-gradient(120deg,#7456ec,#557ff4 55%,#2dafdc); box-shadow:0 18px 36px #5c73c333 }
+  .eyebrow { margin:0 0 3px; font-size:12px; font-weight:800; letter-spacing:.14em; opacity:.8 }
+  h1 { margin:0; font-size:clamp(24px,4vw,34px) } h2 { margin:0 0 10px; font-size:18px }
+  .hero p:last-child { margin:5px 0 0; opacity:.92 }
+  .back { padding:9px 12px; border:1px solid #ffffff99; border-radius:10px; color:white; text-decoration:none; font-weight:750; white-space:nowrap }
+  .back:hover { background:#ffffff22 }
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; margin:18px 0 }
+  .step { padding:11px 15px; border:1px solid var(--line); border-radius:15px; background:#fff; font-size:13px; font-weight:750 }
+  .step span { display:inline-grid; width:24px; height:24px; margin-right:6px; place-items:center; border-radius:8px; color:#fff; background:var(--violet) }
+  .layout { display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:16px; align-items:start }
+  .panel { margin-bottom:16px; padding:21px; border:1px solid var(--line); border-radius:20px; background:#ffffffed; box-shadow:0 15px 40px #54679416 }
+  .hint { margin:5px 0 15px; color:var(--sub); font-size:13px }
+  .drop { display:block; padding:25px 14px; border:2px dashed #c9c2f6; border-radius:15px; color:#6457bc; background:linear-gradient(120deg,#f6f1ff,#f0f9ff); text-align:center; cursor:pointer; font-weight:750 }
+  .drop.dragging { border-color:var(--violet); background:#e9e3ff }
+  .drop input { display:none } .drop small { display:block; margin-top:5px; color:var(--sub); font-weight:400 }
+  .drop:focus-visible,.back:focus-visible,button:focus-visible,#grid-preview:focus-visible { outline:3px solid var(--violet); outline-offset:3px }
+  .file-name { display:block; margin:9px 0 16px; min-height:20px; color:var(--sub); font-size:13px }
+  label.field { display:block; margin-top:12px; color:#43516d; font-size:13px; font-weight:750 }
+  input,select,button { width:100%; min-height:40px; margin-top:5px; padding:8px 10px; border:1px solid #dce3ee; border-radius:10px; background:white; color:var(--ink); font:inherit }
+  input:focus,select:focus { outline:3px solid #7a5af133; border-color:var(--violet) }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:9px }
+  .actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:14px }
+  .fixed { margin:16px 0; padding:10px 12px; border-radius:10px; color:#624ca7; background:#f2edff; font-size:13px }
+  button { cursor:pointer; font-weight:800 } button:disabled { opacity:.55; cursor:wait }
+  #convert-preview { border:0; color:white; background:linear-gradient(130deg,var(--violet),var(--blue)) }
+  #generate { border:1px solid #b5bde0; color:#56618a; background:#f5f7fc }
+  #generate.preview-ready { border-color:#8b78ed; color:#654ee0; background:#f7f3ff }
+  #generate:disabled { opacity:.65; cursor:not-allowed }
+  #generate-hint { margin:7px 0 0; color:var(--sub); font-size:12px }
+  #cancel-conversion { border:1px solid #e3acb4; color:#aa4356; background:#fff1f3 }
+  #status { min-height:24px; margin:11px 0 0; color:#53627f; font-size:13px; white-space:pre-wrap }
+  .preview { min-height:180px; display:grid; place-items:center; overflow:auto; border:1px solid #dde5f1; border-radius:14px; background:#f5f7fc }
+  canvas,#result-image { display:block; max-width:100%; margin:auto; image-rendering:pixelated }
+  #grid-preview.selectable { cursor:pointer }
+  #grid-selection-note { margin:7px 0 0; color:#6457bc; font-size:13px }
+  [hidden] { display:none !important }
+  #result-image { max-height:620px }
+  #tile-preview { width:min(100%,512px); height:auto; image-rendering:pixelated; border:1px solid #dce3ee; border-radius:10px }
+  .empty { padding:28px; text-align:center; color:#8592aa; font-size:13px }
+  #outputs { display:grid; gap:7px; margin-top:14px }
+  .output { padding:8px 11px; border:1px solid #e2e8f2; border-radius:10px; color:#53617d; background:#f9fbff; font-size:13px }
+  .output strong { color:#4954a1 }
+  .safety { padding:13px 15px; border-radius:13px; color:#5b617b; background:#edf5ff; font-size:13px }
+  @media(max-width:740px) { .layout,.steps,.actions { grid-template-columns:1fr } .hero { align-items:start; padding:20px } .hero p:last-child { display:none } }
+</style>
+<link rel="stylesheet" href="/pink-theme.css">
+</head>
+<body class="studio-page"><main class="shell">
+<header class="hero"><div><p class="eyebrow">MAP ART STUDIO</p><h1>图片制作</h1><p>上传图片、预览颜色，再生成可用的地图画文件。</p></div><a class="back" href="/">返回建造页面</a></header>
+<div class="steps"><div class="step"><span>1</span>上传原图</div><div class="step"><span>2</span>设置分块和颜色</div><div class="step"><span>3</span>生成投影与 schem</div></div>
+<div class="layout">
+<div>
+  <section class="panel"><h2>选择图片与分块</h2><p class="hint">图片会先缩放，再按每块 128×128 像素切开；边缘不足的地方自动补白。</p>
+    <label id="drop" class="drop" role="button" tabindex="0" aria-describedby="upload-hint">拖入图片，或点这里选择<input id="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/avif,image/gif" tabindex="-1"><small id="upload-hint">也可按 Enter 或空格选图；PNG / JPG / WebP / AVIF / GIF；原图最多 25 MB</small></label>
+    <span id="file-name" class="file-name">尚未选择图片</span>
+    <label class="field">输出名称<input id="output-name" maxlength="70" placeholder="例如：我的地图画"></label>
+    <div class="row"><label class="field">缩放后宽度（像素）<input id="target-width" type="number" min="1" max="8192" value="128"></label><label class="field">缩放后高度（像素）<input id="target-height" type="number" min="1" max="8192" value="128"></label></div>
+    <label class="field">图片比例<select id="fit"><option value="fill">拉伸到指定宽高</option><option value="inside">保持比例，空白处补白</option><option value="outside">保持比例，裁掉多余部分</option></select></label>
+    <label class="field">缩放画质<select id="interpolation"><option value="smooth">平滑</option><option value="fast">快速</option></select></label>
+    <label class="field">颜色模式<select id="mode"><option value="rgb+">RGB+</option><option value="lab94">Lab94</option><option value="lab00">Lab00</option><option value="xyz">XYZ</option></select></label>
+    <div class="fixed">颜色会自动进行抖动仿色。只使用 16 色地毯，每块地图画会自动带上一排平滑石头。</div>
+    <div class="actions"><button id="convert-preview" type="button">先转换预览（不保存）</button><button id="generate" type="button" disabled>生成投影并转换为 schem</button></div><p id="generate-hint">请先完成转换预览；确认效果后才能生成文件。</p><button id="cancel-conversion" type="button" hidden>取消当前图片转换</button><div id="status" role="status"></div>
+  </section>
+  <div class="safety">已有同名文件时不会覆盖。切出来的小图不会留在电脑里，原图也不会被改动。生成后，回建造页面添加任务并确认坐标。</div>
+</div>
+<div>
+  <section class="panel"><h2>切割网格预览</h2><div class="preview"><canvas id="grid-preview" hidden tabindex="0" role="button" aria-label="分块网格；完成转换预览后可点击分块，或用方向键选择分块"></canvas><div id="grid-empty" class="empty">上传图片后显示缩放与分块位置</div></div><p id="grid-summary" class="hint">切割顺序从左到右、从上到下；边缘自动补白。转换预览后可点击分块放大查看。</p><p id="grid-selection-note" hidden></p></section>
+  <section id="converted-panel" class="panel" tabindex="-1"><h2>颜色预览与生成结果</h2><div class="preview"><img id="result-image" alt="地图画颜色预览" hidden><div id="result-empty" class="empty">选择图片和颜色模式后，点“先转换预览”；预览不会保存文件</div></div><p id="preview-summary" class="hint" hidden></p><div id="tile-panel" hidden><label class="field">放大查看其中一块<select id="tile-select"></select></label><div class="preview"><canvas id="tile-preview" width="512" height="512" aria-label="所选地图块的放大预览"></canvas></div><p class="hint">按地图原有像素放大，不会把像素边缘变模糊。</p></div><h2 id="output-title" hidden>最近一次生成的文件</h2><div id="outputs"></div></section>
+</div>
+</div>
+</main>
+<script>
+const $ = id => document.getElementById(id)
+let selected = null
+let image = null
+let objectUrl = null
+let busy = false
+let progressTimer = null
+let previewColumns = 0
+let previewCurrent = false
+
+function updateGenerateState() {
+  const ready = Boolean(selected && previewCurrent)
+  $('generate').disabled = busy || !ready
+  $('generate').classList.toggle('preview-ready', ready)
+  $('generate-hint').textContent = !selected ? '请先选图并完成转换预览；确认效果后才能生成文件。' :
+    ready ? '当前预览与所选图片及颜色设置一致，可以生成文件。' :
+      '预览尚未完成或设置已改变；请重新点击“先转换预览”。'
+}
+
+function showTile() {
+  const source = $('result-image')
+  if (!source.complete || !source.naturalWidth || !previewColumns) return
+  const index = Number($('tile-select').value)
+  const col = index % previewColumns; const row = Math.floor(index / previewColumns)
+  const canvas = $('tile-preview'); const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = false
+  ctx.clearRect(0, 0, 512, 512)
+  ctx.drawImage(source, col * 128, row * 128, 128, 128, 0, 0, 512, 512)
+  $('grid-selection-note').hidden = false
+  $('grid-selection-note').textContent = `正在查看第 ${row + 1} 行 / 第 ${col + 1} 列。`
+}
+
+function selectGridTile(index, jumpToTile = true) {
+  if (!previewCurrent || !previewColumns) {
+    $('status').textContent = '请先点击“先转换预览”，再从网格中选要放大的分块。'
+    return
+  }
+  const selector = $('tile-select')
+  const bounded = Math.max(0, Math.min(selector.options.length - 1, index))
+  selector.value = String(bounded)
+  showTile()
+  if (jumpToTile) $('tile-panel').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function jumpToConvertedPreview() {
+  const panel = $('converted-panel')
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  panel.focus({ preventScroll: true })
+}
+
+function showConvertedPreview(result) {
+  previewColumns = result.columns
+  const selector = $('tile-select'); selector.replaceChildren()
+  for (let row = 0; row < result.rows; row++) for (let col = 0; col < result.columns; col++) {
+    const option = document.createElement('option')
+    option.value = row * result.columns + col
+    option.textContent = `第 ${row + 1} 行 / 第 ${col + 1} 列`
+    selector.append(option)
+  }
+  $('tile-panel').hidden = false
+  $('result-image').src = result.preview
+  $('result-image').hidden = false; $('result-empty').hidden = true
+  $('preview-summary').hidden = false
+  $('preview-summary').textContent = `${result.mode.toUpperCase()} · 固定抖动 · ${result.imageWidth} × ${result.imageHeight} 像素 · ${result.columns} × ${result.rows} 张地图`
+}
+
+$('result-image').onload = showTile
+$('tile-select').onchange = showTile
+$('grid-preview').addEventListener('click', event => {
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!rect.width || !rect.height || !previewColumns) return selectGridTile(0)
+  const rows = Math.ceil($('tile-select').options.length / previewColumns)
+  const col = Math.min(previewColumns - 1, Math.max(0, Math.floor((event.clientX - rect.left) / rect.width * previewColumns)))
+  const row = Math.min(rows - 1, Math.max(0, Math.floor((event.clientY - rect.top) / rect.height * rows)))
+  selectGridTile(row * previewColumns + col)
+})
+$('grid-preview').addEventListener('keydown', event => {
+  if (!previewCurrent) return
+  const index = Number($('tile-select').value) || 0
+  const steps = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -previewColumns, ArrowDown: previewColumns }
+  if (Object.hasOwn(steps, event.key)) {
+    event.preventDefault()
+    selectGridTile(index + steps[event.key], false)
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    selectGridTile(index)
+  }
+})
+
+function invalidatePreview() {
+  previewCurrent = false
+  previewColumns = 0
+  $('result-image').hidden = true
+  $('result-image').removeAttribute('src')
+  $('result-empty').hidden = false
+  $('result-empty').textContent = '设置已更新；点“转换预览”查看新效果（不保存文件）'
+  $('preview-summary').hidden = true
+  $('tile-panel').hidden = true
+  $('grid-preview').classList.remove('selectable')
+  $('grid-selection-note').hidden = true
+  $('output-title').hidden = true
+  $('outputs').replaceChildren()
+  updateGenerateState()
+}
+
+function setBusy(value) {
+  busy = value
+  for (const control of document.querySelectorAll('input,select,#convert-preview,#generate')) control.disabled = value
+  $('drop').tabIndex = value ? -1 : 0
+  $('drop').setAttribute('aria-disabled', String(value))
+  $('cancel-conversion').hidden = !value
+  $('cancel-conversion').disabled = !value
+  if (progressTimer) clearInterval(progressTimer)
+  progressTimer = value ? setInterval(updateProgress, 350) : null
+  updateGenerateState()
+}
+
+async function updateProgress() {
+  try {
+    const response = await fetch('/api/studio/progress', { cache: 'no-store' })
+    if (!response.ok) return
+    const progress = await response.json()
+    if (!busy || !progress.running) return
+    if (progress.cancelling) { $('status').textContent = '正在安全取消并清理临时输出…'; return }
+    const phase = { prepare: '准备图片', convert: '地图色转换', package: '生成投影文件' }[progress.phase] || '处理中'
+    $('status').textContent = `${phase}：${progress.done}/${progress.total} 张；请保持网页开启…`
+  } catch { /* The request itself reports the final error. */ }
+}
+
+function previewGrid() {
+  if (!image) return
+  invalidatePreview()
+  const requestedWidth = Math.max(1, Number($('target-width').value) || 1)
+  const requestedHeight = Math.max(1, Number($('target-height').value) || 1)
+  const fit = $('fit').value
+  const scale = fit === 'inside' ? Math.min(requestedWidth / image.width, requestedHeight / image.height) :
+    fit === 'outside' ? Math.max(requestedWidth / image.width, requestedHeight / image.height) : 0
+  const actualWidth = fit === 'fill' ? requestedWidth : Math.max(1, Math.round(image.width * scale))
+  const actualHeight = fit === 'fill' ? requestedHeight : Math.max(1, Math.round(image.height * scale))
+  const columns = Math.ceil(actualWidth / 128); const rows = Math.ceil(actualHeight / 128)
+  $('grid-summary').textContent = `缩放后约 ${actualWidth} × ${actualHeight} 像素；切为 ${columns} 列 × ${rows} 行，共 ${columns * rows} 张，边缘不足 128 像素补白。`
+  const canvas = $('grid-preview')
+  const width = Math.min(720, columns * 128)
+  const height = Math.max(1, Math.round(width * rows / columns))
+  canvas.width = width; canvas.height = height
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height)
+  ctx.drawImage(image, 0, 0, actualWidth * width / (columns * 128), actualHeight * height / (rows * 128))
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2
+  ctx.shadowColor = '#18214e'; ctx.shadowBlur = 3
+  for (let col = 1; col < columns; col++) { const x = col * width / columns; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke() }
+  for (let row = 1; row < rows; row++) { const y = row * height / rows; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke() }
+  ctx.shadowBlur = 0
+  canvas.hidden = false; $('grid-empty').hidden = true
+}
+
+function selectFile(file) {
+  if (!file) return
+  if (busy) return
+  if (!/^image\//.test(file.type)) { $('status').textContent = '请选择图片文件'; return }
+  selected = file
+  invalidatePreview()
+  $('file-name').textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`
+  if (!$('output-name').value) $('output-name').value = file.name.replace(/\.[^.]+$/, '').replace(/[^\p{L}\p{N}._-]/gu, '_').replace(/[. ]+$/, '')
+  if (objectUrl) URL.revokeObjectURL(objectUrl)
+  objectUrl = URL.createObjectURL(file)
+  image = new Image()
+  image.onload = () => { $('target-width').value = image.width; $('target-height').value = image.height; previewGrid() }
+  image.onerror = () => { $('status').textContent = '图片预览失败，请换一张图片' }
+  image.src = objectUrl
+}
+
+function dataBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(Error('图片读取失败'))
+    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.readAsDataURL(file)
+  })
+}
+
+$('image-file').onchange = event => selectFile(event.target.files[0])
+for (const id of ['target-width', 'target-height', 'fit']) $(id).addEventListener('input', previewGrid)
+for (const id of ['interpolation', 'mode']) $(id).addEventListener('change', invalidatePreview)
+const drop = $('drop')
+drop.addEventListener('keydown', event => {
+  if (busy || event.target !== drop || (event.key !== 'Enter' && event.key !== ' ')) return
+  event.preventDefault()
+  $('image-file').click()
+})
+drop.ondragover = event => { event.preventDefault(); drop.classList.add('dragging') }
+drop.ondragleave = () => drop.classList.remove('dragging')
+drop.ondrop = event => { event.preventDefault(); drop.classList.remove('dragging'); selectFile(event.dataTransfer.files[0]) }
+async function runConversion(previewOnly) {
+  if (busy) return
+  if (!previewOnly && !previewCurrent) { $('status').textContent = '请先完成当前设置的转换预览，再生成文件。'; return }
+  if (!selected) { $('status').textContent = '请先选图片'; return }
+  if (selected.size > 25 * 1024 * 1024) { $('status').textContent = '图片超过 25 MB'; return }
+  const targetWidth = Number($('target-width').value); const targetHeight = Number($('target-height').value)
+  if (!Number.isInteger(targetWidth) || !Number.isInteger(targetHeight) || targetWidth < 1 || targetHeight < 1 || targetWidth > 8192 || targetHeight > 8192) { $('status').textContent = '请填写 1～8192 的目标像素尺寸'; return }
+  setBusy(true)
+  $('status').textContent = previewOnly ? '正在转换颜色预览；不会保存任何投影文件…' : '正在缩放、分块并生成投影，请保持网页开启…'
+  try {
+    const response = await fetch(previewOnly ? '/api/studio/preview' : '/api/studio/generate', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: $('output-name').value, targetWidth, targetHeight, fit: $('fit').value,
+        interpolation: $('interpolation').value, mode: $('mode').value, data: await dataBase64(selected) })
+    })
+    const result = await response.json()
+    if (previewOnly && result.error === 'Not found') throw Error('控制台仍在运行旧版服务；请关闭旧 dashboard 窗口并重新运行 npm.cmd run dashboard，然后刷新网页')
+    if (!response.ok) throw Error(result.error || '生成失败')
+    previewCurrent = true
+    showConvertedPreview(result)
+    $('grid-preview').classList.add('selectable')
+    jumpToConvertedPreview()
+    if (previewOnly) {
+      $('status').textContent = '预览完成；没有生成或覆盖 .litematic、.schem。满意后再点“生成投影并转换为 schem”。'
+    } else {
+      const outputs = $('outputs'); outputs.replaceChildren()
+      $('output-title').hidden = false
+      for (const item of result.files) {
+        const row = document.createElement('div'); row.className = 'output'
+        const label = document.createElement('strong'); label.textContent = `第 ${item.row} 行 / 第 ${item.column} 列：`
+        row.append(label, document.createTextNode(`投影文件/${item.projection} → schem/${item.schematic}`))
+        outputs.append(row)
+      }
+      $('status').textContent = `完成 ${result.files.length} 张；已生成 .litematic、.schem 和材料清单。裁剪图未落地，原图未改动。`
+    }
+  } catch (error) { $('status').textContent = `未完成：${error.message}` }
+  finally { setBusy(false) }
+}
+$('cancel-conversion').onclick = async () => {
+  if (!busy) return
+  $('cancel-conversion').disabled = true
+  $('status').textContent = '正在安全取消并清理临时输出…'
+  try {
+    const response = await fetch('/api/studio/cancel', { method: 'POST' })
+    if (!response.ok) throw Error('取消请求失败')
+  } catch (error) {
+    $('status').textContent = error.message
+    $('cancel-conversion').disabled = false
+  }
+}
+$('convert-preview').onclick = () => runConversion(true)
+$('generate').onclick = () => runConversion(false)
+updateGenerateState()
+</script>
+</body>
+</html>
