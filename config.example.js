@@ -94,6 +94,7 @@ const config = {
     operationDelayMs: 10,
     autoAuditAfterBuild: true,
     replaceWrongSupportedBlock: true,
+    maxDeferredWrongCarpets: 99,
     stopOnNonCarpetBlock: true,
     reservedInventorySlots: 4,
     maxCombinedAdjacentRegions: 2

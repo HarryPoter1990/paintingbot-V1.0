@@ -697,7 +697,7 @@ async function makeLegacyRegion(plan, state, regionX, regionZ) {
 
 const legacyRegionId = (regionX, regionZ) => `${regionX},${regionZ}`
 
-async function nextLegacyRegion(plan, state) {
+async function nextLegacyRegion(plan, state, deferredRegions = new Map()) {
   const size = config.build.regionSize
   const maxTaskX = Math.max(...plan.rows.flat().map(task => task.local.x))
   const maxTaskZ = Math.max(...plan.rows.flat().map(task => task.local.z))
@@ -708,7 +708,7 @@ async function nextLegacyRegion(plan, state) {
     const hasOpenRow = Array.from({ length: Math.min(size, maxTaskZ - firstZ + 1) }, (_, n) => firstZ + n).some(z => !state.completedRows.includes(z))
     if (!hasOpenRow) continue
     for (let regionX = 0; regionX < regionsX; regionX++) {
-      if (state.completedRegions?.includes(legacyRegionId(regionX, regionZ))) continue
+      if (state.completedRegions?.includes(legacyRegionId(regionX, regionZ)) || deferredRegions.has(legacyRegionId(regionX, regionZ))) continue
       const region = await makeLegacyRegion(plan, state, regionX, regionZ)
       if (region.tasks.length) return region
     }
@@ -729,7 +729,7 @@ function mergeMaterialRequirements(...requirementsList) {
 // Collect at most one neighbouring region in the same 32-row stripe. This
 // removes a material-residence round trip without changing placement order,
 // confirmation, or the build-residence entry sequence for either region.
-async function collectCompatibleRegionGroup(plan, state, first) {
+async function collectCompatibleRegionGroup(plan, state, first, deferredRegions = new Map()) {
   // Two accounts already halve the map. Do not also fill each inventory with
   // two 32×32 regions: under concurrent container updates a completely full
   // backpack can report a stale missing stack midway through placement.
@@ -744,7 +744,7 @@ async function collectCompatibleRegionGroup(plan, state, first) {
   const maxTaskX = Math.max(...plan.rows.flat().map(task => task.local.x))
   const regionsX = Math.ceil(maxTaskX / config.build.regionSize)
   for (let regionX = first.regionX + 1; regionX < regionsX && group.length < maxRegions; regionX += 1) {
-    if (state.completedRegions?.includes(legacyRegionId(regionX, first.regionZ))) break
+    if (state.completedRegions?.includes(legacyRegionId(regionX, first.regionZ)) || deferredRegions.has(legacyRegionId(regionX, first.regionZ))) break
     const candidate = await makeLegacyRegion(plan, state, regionX, first.regionZ)
     if (candidate.tasks.length === 0) break
     const combined = mergeMaterialRequirements(materials, candidate.materials)
@@ -814,7 +814,7 @@ async function moveAcrossCompletedSurface(destination) {
 // v2 features handle litematic conversion, containers and checkpointing; this
 // function deliberately does not add pathfinding, chunk waits, or per-block
 // confirmation between the coordinate write and place packet.
-async function placeTaskLegacyOriginal(task, state, justEnteredRegion = false, positionBeforeMove = null) {
+async function placeTaskLegacyOriginal(task, state, justEnteredRegion = false, positionBeforeMove = null, safeSupportPosture = false) {
   if (stopping) return 'stopped'
   const world = toWorld(task.local)
   if (!justEnteredRegion) {
@@ -871,19 +871,20 @@ async function placeTaskLegacyOriginal(task, state, justEnteredRegion = false, p
       if (stopping) throw new Error(`Build interrupted by death or disconnect while placing at ${world}: ${error.message}`)
       const current = bot.entity?.position
       const dualHalf = workerRole === 'left' || workerRole === 'right'
+      const usesSupportPosture = dualHalf || safeSupportPosture
       const stand = world.offset(0, 0, -1)
-      const standBlock = dualHalf ? bot.blockAt(stand) : null
-      const expectedX = dualHalf ? stand.x + 0.5 : world.x + 0.5
-      const expectedZ = dualHalf ? stand.z + 0.5 : world.z + 0.5
+      const standBlock = usesSupportPosture ? bot.blockAt(stand) : null
+      const expectedX = usesSupportPosture ? stand.x + 0.5 : world.x + 0.5
+      const expectedZ = usesSupportPosture ? stand.z + 0.5 : world.z + 0.5
       // A carpet's top is at block Y + 1/16, not Y + 1. Falling from the
       // temporary Y+1 entry posture onto a completed carpet is valid here:
       // the bot remains beside the target and can still click its support.
-      const minimumFeetY = dualHalf && standBlock?.name.endsWith('_carpet')
+      const minimumFeetY = usesSupportPosture && standBlock?.name.endsWith('_carpet')
         ? stand.y + 0.0625 - 0.12
         : world.y + 1 - 0.12
-      if (current && (Math.hypot(current.x - expectedX, current.z - expectedZ) > (dualHalf ? 2 : 6) ||
+      if (current && (Math.hypot(current.x - expectedX, current.z - expectedZ) > (usesSupportPosture ? 2 : 6) ||
         current.y < minimumFeetY || current.y > world.y + 1.5 ||
-        (dualHalf && (!standBlock || standBlock.name === 'air')))) {
+        (usesSupportPosture && (!standBlock || standBlock.name === 'air')))) {
         throw new Error(`Lost safe placement position for ${workerLabel}: current=${current}, target=${world}, previous-row block=${standBlock?.name || 'unloaded'}; original placement error: ${error.message}`)
       }
       if (error.message.startsWith('Missing ')) throw error
@@ -930,11 +931,12 @@ async function verifyAndCheckpointRegion(plan, state, region) {
   await writeState(state)
 }
 
-async function buildLegacyRegion(plan, state, region) {
+async function buildLegacyRegion(plan, state, region, deferredOccupied = new Map(), allowDeferred = true) {
   await travel('build')
   await sleep(config.build.buildTeleportSettleMs)
   let lastZ = null
   let failures = 0
+  let deferredInRegion = 0
   // Complete one row, then immediately return along the next row.  This
   // avoids a needless 32-block run back to the same edge between rows.
   const ordered = [...region.tasks].sort((a, b) => {
@@ -990,6 +992,25 @@ async function buildLegacyRegion(plan, state, region) {
       lastZ = task.local.z
     }
     const result = await placeTaskLegacyOriginal(task, state, true, beforeMove)
+    if (result === 'occupied' && allowDeferred) {
+      const inspection = inspectTask(task)
+      if (inspection.status === 'correct') continue
+      if (config.build.replaceWrongSupportedBlock && task.name.endsWith('_carpet') &&
+        inspection.status === 'wrong_supported_block' && inspection.block.name.endsWith('_carpet')) {
+        const localKey = key(task.local)
+        const configuredLimit = config.build.maxDeferredWrongCarpets
+        const limit = Number.isInteger(configuredLimit) && configuredLimit >= 0 ? Math.min(99, configuredLimit) : 99
+        if (!deferredOccupied.has(localKey) && deferredOccupied.size >= limit) {
+          throw new Error(`Deferred wrong-carpet limit ${limit} reached at ${world}; stopped without breaking blocks`)
+        }
+        deferredOccupied.set(localKey, task)
+        deferredInRegion++
+        console.warn(`[build] deferred wrong carpet at ${world}: expected=${task.name}, actual=${inspection.block.name}; will repair after laying the remaining regions`)
+        await sleep(config.build.operationDelayMs)
+        continue
+      }
+      throw new Error(`Unsafe occupied target at ${world}: expected=${task.name}, actual=${inspection.block?.name || inspection.status}; automatic removal refused`)
+    }
     if (!['placed', 'correct'].includes(result)) {
       failures++
       console.warn(`[build] skipped ${task.name} at local ${task.local}: ${result}`)
@@ -997,7 +1018,12 @@ async function buildLegacyRegion(plan, state, region) {
     await sleep(config.build.operationDelayMs)
   }
   if (failures > 0) throw new Error(`Region ${region.regionX},${region.regionZ} has ${failures} unresolved blocks; progress was not advanced`)
+  if (deferredInRegion > 0) {
+    console.log(`[build] region ${region.regionX},${region.regionZ} laid with ${deferredInRegion} deferred wrong carpet(s); checkpoint waits for repair`)
+    return 'deferred'
+  }
   await verifyAndCheckpointRegion(plan, state, region)
+  return 'complete'
 }
 
 // Retained only for the first-version repair compatibility path.
@@ -1189,7 +1215,45 @@ async function auditPlan(plan) {
   return report
 }
 
-async function repairOneTaskViaLegacyCoordinates(task, edge) {
+function assertDeferredRepairStand(support, label) {
+  const block = bot.blockAt(support)
+  const position = bot.entity?.position
+  const minimumFeetY = block?.name.endsWith('_carpet')
+    ? support.y + 0.0625 - 0.12
+    : support.y + 1 - 0.12
+  if (!position || !block || !isSupported(block.name) ||
+    Math.hypot(position.x - support.x - 0.5, position.z - support.z - 0.5) > 0.8 ||
+    position.y < minimumFeetY || position.y > support.y + 1.5) {
+    throw new Error(`Deferred repair left the completed route ${label}: current=${position || 'unknown'}, support=${block?.name || 'unloaded'} at ${support}; stopped before digging`)
+  }
+}
+
+// Deferred repairs share one careful route instead of replaying the long
+// first-face entry for every nearby wrong-colour carpet. Validate every step
+// after the server has had time to update the bot's actual position.
+async function moveDeferredRepairToSupport(fromLocal, toLocal) {
+  const delay = Math.max(120, config.movement.legacyStepDelayMs)
+  const from = toWorld(fromLocal)
+  assertDeferredRepairStand(from, 'before moving')
+  let x = fromLocal.x
+  let z = fromLocal.z
+  while (x !== toLocal.x || z !== toLocal.z) {
+    if (stopping) throw new Error('Deferred repair interrupted while moving')
+    const nextX = x !== toLocal.x ? x + Math.sign(toLocal.x - x) : x
+    const nextZ = x !== toLocal.x ? z : z + Math.sign(toLocal.z - z)
+    const next = toWorld(new Vec3(nextX, toLocal.y, nextZ))
+    const walkway = await waitForTaskChunk(next)
+    if (!walkway || !isSupported(walkway.name)) throw new Error(`Deferred repair route is not a supported block at ${next}; stopped before crossing it`)
+    if (nextX !== x) bot.entity.position.x = next.x + 0.5
+    else bot.entity.position.z = next.z + 0.5
+    await sleep(delay)
+    assertDeferredRepairStand(next, 'after a short step')
+    x = nextX
+    z = nextZ
+  }
+}
+
+async function repairOneTaskViaLegacyCoordinates(task, edge, carpetOnly = false, positionedOnSupport = false) {
   if (stopping) throw new Error('Repair interrupted by death or disconnect')
   const world = toWorld(task.local)
   if (edge) {
@@ -1200,20 +1264,37 @@ async function repairOneTaskViaLegacyCoordinates(task, edge) {
   } else {
     // Match normal region entry: row 1 is entered directly; later rows first
     // enter face 0 and cross the completed rows in short coordinate steps.
-    if (task.local.z === 1) await enterRegionViaLegacyCoordinates(task)
-    else await enterRegionViaFirstFaceLegacyWalk(task)
+    if (!positionedOnSupport) {
+      if (task.local.z === 1) await enterRegionViaLegacyCoordinates(task)
+      else await enterRegionViaFirstFaceLegacyWalk(task)
+    }
     const support = world.offset(0, 0, -1)
     const supportBlock = await waitForTaskChunk(support)
     if (!supportBlock || supportBlock.name === 'air') {
       throw new Error(`Repair route has no completed support row at ${support}`)
     }
-    const stand = workerRole === 'left' || workerRole === 'right' ? support : world
-    bot.entity.position.x = stand.x + 0.5
-    bot.entity.position.z = stand.z + 0.5
-    await sleep(50)
+    // Deferred carpet repair must never dig the block under the bot, even in
+    // single mode. The completed row behind the target is the safe stand.
+    const stand = carpetOnly || workerRole === 'left' || workerRole === 'right' ? support : world
+    if (positionedOnSupport) {
+      assertDeferredRepairStand(support, 'before digging')
+    } else {
+      bot.entity.position.x = stand.x + 0.5
+      bot.entity.position.z = stand.z + 0.5
+      await sleep(50)
+    }
   }
   let inspection = inspectTask(task)
   if (inspection.status === 'correct') return
+  if (carpetOnly) {
+    if (!task.name.endsWith('_carpet') ||
+      (inspection.status !== 'empty' &&
+        (inspection.status !== 'wrong_supported_block' || !inspection.block.name.endsWith('_carpet')))) {
+      throw new Error(`Deferred repair found unsafe ${inspection.block?.name || inspection.status} at ${world}; removal refused`)
+    }
+    const floor = await waitForTaskChunk(world.offset(0, -1, 0))
+    if (!floor || floor.name === 'air') throw new Error(`Deferred repair has no support under ${world}; removal refused`)
+  }
   if (inspection.status === 'wrong_supported_block') {
     if (!config.build.replaceWrongSupportedBlock) {
       throw new Error(`Repair found wrong ${inspection.block.name} at ${world}; replacement is disabled`)
@@ -1229,7 +1310,7 @@ async function repairOneTaskViaLegacyCoordinates(task, edge) {
   if (inspection.status !== 'empty') {
     throw new Error(`Repair blocked by ${inspection.block?.name || inspection.status} at ${world}`)
   }
-  const result = await placeTaskLegacyOriginal(task, { blocked: [] }, true)
+  const result = await placeTaskLegacyOriginal(task, { blocked: [] }, true, null, carpetOnly)
   if (!['placed', 'correct'].includes(result) || !await waitForExpected(world, task.name)) {
     throw new Error(`Repair placement was not confirmed at ${world}: ${result}`)
   }
@@ -1256,6 +1337,40 @@ async function repairFromAudit(plan, report) {
   for (const task of tasks.sort((a, b) => a.local.z - b.local.z || a.local.x - b.local.x)) {
     await repairOneTaskViaLegacyCoordinates(task, task.local.z === 0)
   }
+}
+
+async function repairDeferredOccupied(plan, state, deferredRegions, deferredOccupied) {
+  if (deferredOccupied.size === 0) return
+  const tasks = [...deferredOccupied.values()].sort((a, b) => a.local.z - b.local.z || a.local.x - b.local.x)
+  const requirements = {}
+  for (const task of tasks) requirements[task.name] = (requirements[task.name] || 0) + 1
+  if (stackCount(requirements) > 36 - config.build.reservedInventorySlots) {
+    throw new Error(`Deferred carpet repair needs too many inventory slots (${tasks.length} blocks)`)
+  }
+  console.log(`[repair] starting ${tasks.length} deferred wrong-carpet replacement(s) after laying the remaining regions`)
+  if (missingInventoryRequirements(requirements).length > 0) {
+    console.log('[repair] collecting missing carpet colours before the deferred pass')
+    await acquire(requirements)
+    await confirmAcquiredMaterials(requirements, 'deferred carpet repair')
+  }
+  // Reset to the known build residence once. Enter the first face only once,
+  // then walk between nearby completed support rows at a verified pace.
+  await travel('build')
+  await sleep(config.build.buildTeleportSettleMs)
+  const firstFaceSupport = new Vec3(1, tasks[0].local.y, 0)
+  await enterRegionViaLegacyCoordinates({ local: new Vec3(1, tasks[0].local.y, 1) })
+  let currentSupport = firstFaceSupport
+  for (const task of tasks) {
+    const targetSupport = new Vec3(task.local.x, task.local.y, task.local.z - 1)
+    await moveDeferredRepairToSupport(currentSupport, targetSupport)
+    await repairOneTaskViaLegacyCoordinates(task, false, true, true)
+    currentSupport = targetSupport
+  }
+  for (const region of deferredRegions.values()) {
+    console.log(`[repair] rechecking deferred region ${region.regionX},${region.regionZ} before checkpoint`)
+    await buildLegacyRegion(plan, state, region, new Map(), false)
+  }
+  console.log(`[repair] ${tasks.length} deferred wrong-carpet position(s) repaired and their regions checked`)
 }
 
 async function waitForDualStartGate() {
@@ -1344,19 +1459,24 @@ async function run() {
     await travel('build')
     await sleep(config.build.buildTeleportSettleMs)
   }
+  const deferredRegions = new Map()
+  const deferredOccupied = new Map()
   while (!stopping) {
-    const region = await nextLegacyRegion(plan, state)
+    const region = await nextLegacyRegion(plan, state, deferredRegions)
     if (!region) break
-    const group = await collectCompatibleRegionGroup(plan, state, region)
+    const group = await collectCompatibleRegionGroup(plan, state, region, deferredRegions)
     const labels = group.regions.map(item => `${item.regionX},${item.regionZ}`).join(' + ')
     console.log(`[storage] collecting materials for region group ${labels} (${stackCount(group.materials)} usable stack slot(s))`)
     await acquire(group.materials)
     await confirmAcquiredMaterials(group.materials, `region group ${labels}`)
     for (const item of group.regions) {
       console.log(`[build] starting initial-version region ${item.regionX},${item.regionZ}: X(${item.minX}-${item.maxX - 1}), Z(${item.minZ}-${item.maxZ - 1})`)
-      await buildLegacyRegion(plan, state, item)
+      const outcome = await buildLegacyRegion(plan, state, item, deferredOccupied)
+      if (outcome === 'deferred') deferredRegions.set(legacyRegionId(item.regionX, item.regionZ), item)
     }
   }
+  if (stopping) throw new Error('Build interrupted before deferred carpet repair')
+  await repairDeferredOccupied(plan, state, deferredRegions, deferredOccupied)
   if (config.build.autoAuditAfterBuild && workerRole === 'single') {
     console.log('[audit] starting automatic final read-only audit')
     const report = await auditPlan(plan)
